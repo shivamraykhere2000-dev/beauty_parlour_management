@@ -1,0 +1,552 @@
+import 'dart:io';
+
+import 'package:beauty_parlour_management/core/database/tables/appointments.dart';
+import 'package:beauty_parlour_management/core/database/tables/customers.dart';
+import 'package:beauty_parlour_management/core/database/tables/expenses.dart';
+import 'package:beauty_parlour_management/core/database/tables/inventoryitems.dart';
+import 'package:beauty_parlour_management/core/database/tables/services.dart';
+import 'package:drift/drift.dart';
+import 'package:drift/native.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+
+import '../config/app_constants.dart';
+import 'daos/appointments_dao.dart';
+import 'daos/customers_dao.dart';
+import 'daos/expenses_dao.dart';
+import 'daos/inventoryitems_dao.dart';
+import 'daos/services_dao.dart';
+
+part 'app_database.g.dart';
+
+@DriftDatabase(
+  tables: [
+    Expenses,
+    Appointments,
+    Customers,
+    Services,
+    InventoryItems,
+  ],
+  daos: [
+    AppointmentsDao,
+    CustomersDao,
+    ExpensesDao,
+    InventoryitemsDao,
+    ServicesDao,
+  ],
+)
+class AppDatabase extends _$AppDatabase {
+  AppDatabase() : super(_openConnection());
+
+  /// Used by tests to inject an in-memory executor.
+  AppDatabase.withExecutor(super.executor);
+
+  @override
+  int get schemaVersion => 1;
+
+  @override
+  MigrationStrategy get migration {
+    return MigrationStrategy(
+      onCreate: (Migrator m) async {
+        await m.createAll();
+        await _seed();
+      },
+    );
+  }
+
+  // =========================================================================
+  // Backup / Restore — local JSON export & import. This is the actual data
+  // layer for the Backup screen; Google Drive upload of the exported file
+  // is a thin wrapper around this that can be added once OAuth is wired up
+  // without touching this method.
+  // =========================================================================
+
+  Future<Map<String, dynamic>> exportToJson() async {
+    final List<Customer> allCustomers = await select(customers).get();
+    final List<Appointment> allAppointments = await select(appointments).get();
+    final List<Service> allServices = await select(services).get();
+    final List<InventoryItem> allInventory = await select(inventoryItems).get();
+    final List<Expense> allExpenses = await select(expenses).get();
+
+    return <String, dynamic>{
+      'version': schemaVersion,
+      'exportedAt': DateTime.now().toIso8601String(),
+      'customers': allCustomers.map((Customer c) => c.toJson()).toList(),
+      'appointments':
+          allAppointments.map((Appointment a) => a.toJson()).toList(),
+      'services': allServices.map((Service s) => s.toJson()).toList(),
+      'inventoryItems':
+          allInventory.map((InventoryItem i) => i.toJson()).toList(),
+      'expenses': allExpenses.map((Expense e) => e.toJson()).toList(),
+    };
+  }
+
+  /// Restores data from a previously exported JSON map. Existing rows are
+  /// cleared first so restoring is idempotent rather than duplicating data.
+  Future<void> importFromJson(Map<String, dynamic> data) async {
+    await transaction(() async {
+      await delete(expenses).go();
+      await delete(inventoryItems).go();
+      await delete(appointments).go();
+      await delete(services).go();
+      await delete(customers).go();
+
+      final List<dynamic> customersJson =
+          (data['customers'] as List<dynamic>?) ?? <dynamic>[];
+      for (final dynamic c in customersJson) {
+        await into(customers).insert(
+            Customer.fromJson(c as Map<String, dynamic>).toCompanion(true));
+      }
+      final List<dynamic> servicesJson =
+          (data['services'] as List<dynamic>?) ?? <dynamic>[];
+      for (final dynamic s in servicesJson) {
+        await into(services).insert(
+            Service.fromJson(s as Map<String, dynamic>).toCompanion(true));
+      }
+      final List<dynamic> appointmentsJson =
+          (data['appointments'] as List<dynamic>?) ?? <dynamic>[];
+      for (final dynamic a in appointmentsJson) {
+        await into(appointments).insert(
+            Appointment.fromJson(a as Map<String, dynamic>).toCompanion(true));
+      }
+      final List<dynamic> inventoryJson =
+          (data['inventoryItems'] as List<dynamic>?) ?? <dynamic>[];
+      for (final dynamic i in inventoryJson) {
+        await into(inventoryItems).insert(
+            InventoryItem.fromJson(i as Map<String, dynamic>)
+                .toCompanion(true));
+      }
+      final List<dynamic> expensesJson =
+          (data['expenses'] as List<dynamic>?) ?? <dynamic>[];
+      for (final dynamic e in expensesJson) {
+        await into(expenses).insert(
+            Expense.fromJson(e as Map<String, dynamic>).toCompanion(true));
+      }
+    });
+  }
+
+  // =========================================================================
+  // First-run seed — mirrors the Figma export's demo data so the app isn't
+  // empty on first launch. Runs once, only when the DB is first created.
+  // =========================================================================
+
+  Future<void> _seed() async {
+    await batch((Batch b) {
+      b.insertAll(customers, <CustomersCompanion>[
+        CustomersCompanion.insert(
+            name: 'Anita Verma',
+            phone: '9876543210',
+            email: const Value<String>('anita@gmail.com'),
+            birthday: const Value<String?>('1990-07-15'),
+            joinDate: '2022-03-10',
+            visits: const Value<int>(42),
+            totalSpent: const Value<int>(38400),
+            points: const Value<int>(920),
+            membership: const Value<String?>('Gold'),
+            avatarInitials: 'AV',
+            lastVisit: const Value<String?>('2025-07-10'),
+            tags: const Value<String>('VIP,Regular'),
+            notes: const Value<String>(
+                'Prefers morning slots. Sensitive scalp — use mild shampoo only.')),
+        CustomersCompanion.insert(
+            name: 'Kavya Reddy',
+            phone: '9812345678',
+            email: const Value<String>('kavya.r@email.com'),
+            birthday: const Value<String?>('1995-03-22'),
+            joinDate: '2023-01-15',
+            visits: const Value<int>(18),
+            totalSpent: const Value<int>(14200),
+            points: const Value<int>(340),
+            membership: const Value<String?>('Silver'),
+            avatarInitials: 'KR',
+            lastVisit: const Value<String?>('2025-07-08'),
+            tags: const Value<String>('Regular'),
+            notes: const Value<String>(
+                'Loves hair treatments. Always does gel manicure.')),
+        CustomersCompanion.insert(
+            name: 'Sunita Patel',
+            phone: '9765432198',
+            joinDate: '2021-06-20',
+            birthday: const Value<String?>('1985-11-08'),
+            visits: const Value<int>(67),
+            totalSpent: const Value<int>(72300),
+            points: const Value<int>(1640),
+            membership: const Value<String?>('Platinum'),
+            avatarInitials: 'SP',
+            lastVisit: const Value<String?>('2025-07-12'),
+            tags: const Value<String>('VIP,Member'),
+            notes: const Value<String>(
+                'Long-time customer. Monthly hair color appointment.')),
+        CustomersCompanion.insert(
+            name: 'Meera Joshi',
+            phone: '9834567890',
+            email: const Value<String>('meera.j@gmail.com'),
+            birthday: const Value<String?>('1992-07-13'),
+            joinDate: '2024-02-01',
+            visits: const Value<int>(8),
+            totalSpent: const Value<int>(5600),
+            points: const Value<int>(120),
+            avatarInitials: 'MJ',
+            lastVisit: const Value<String?>('2025-06-28'),
+            tags: const Value<String>('New'),
+            notes: const Value<String>('Referred by Anita Verma.')),
+        CustomersCompanion.insert(
+            name: 'Ritu Agarwal',
+            phone: '9898989898',
+            email: const Value<String>('ritu.a@yahoo.com'),
+            birthday: const Value<String?>('1988-12-25'),
+            joinDate: '2022-09-14',
+            visits: const Value<int>(29),
+            totalSpent: const Value<int>(24800),
+            points: const Value<int>(580),
+            membership: const Value<String?>('Silver'),
+            avatarInitials: 'RA',
+            lastVisit: const Value<String?>('2025-07-05'),
+            tags: const Value<String>('Regular'),
+            notes: const Value<String>('Chocolate wax only please.')),
+        CustomersCompanion.insert(
+            name: 'Deepika Nair',
+            phone: '9923456789',
+            email: const Value<String>('deepika.n@gmail.com'),
+            birthday: const Value<String?>('1997-04-18'),
+            joinDate: '2023-08-22',
+            visits: const Value<int>(12),
+            totalSpent: const Value<int>(9800),
+            points: const Value<int>(210),
+            avatarInitials: 'DN',
+            lastVisit: const Value<String?>('2025-07-11'),
+            tags: const Value<String>('Active')),
+        CustomersCompanion.insert(
+            name: 'Pooja Mehta',
+            phone: '9741258963',
+            email: const Value<String>('pooja.m@email.com'),
+            birthday: const Value<String?>('1991-09-30'),
+            joinDate: '2021-12-05',
+            visits: const Value<int>(55),
+            totalSpent: const Value<int>(61200),
+            points: const Value<int>(1380),
+            membership: const Value<String?>('Gold'),
+            avatarInitials: 'PM',
+            lastVisit: const Value<String?>('2025-07-13'),
+            tags: const Value<String>('VIP,Regular'),
+            notes: const Value<String>(
+                'Allergy alert — Loreal only, no other hair dye brands.')),
+        CustomersCompanion.insert(
+            name: 'Sonia Khanna',
+            phone: '9654321780',
+            joinDate: '2024-05-18',
+            birthday: const Value<String?>('1994-06-07'),
+            visits: const Value<int>(5),
+            totalSpent: const Value<int>(3200),
+            points: const Value<int>(70),
+            avatarInitials: 'SK',
+            lastVisit: const Value<String?>('2025-07-01'),
+            tags: const Value<String>('New')),
+        CustomersCompanion.insert(
+            name: 'Rekha Singh',
+            phone: '9567891234',
+            email: const Value<String>('rekha.s@gmail.com'),
+            birthday: const Value<String?>('1983-02-14'),
+            joinDate: '2020-11-30',
+            visits: const Value<int>(89),
+            totalSpent: const Value<int>(95400),
+            points: const Value<int>(2100),
+            membership: const Value<String?>('Platinum'),
+            avatarInitials: 'RS',
+            lastVisit: const Value<String?>('2025-07-13'),
+            tags: const Value<String>('VIP,Member,Regular'),
+            notes: const Value<String>(
+                'Best customer. Monthly packages pre-booked.')),
+        CustomersCompanion.insert(
+            name: 'Lakshmi Iyer',
+            phone: '9845671230',
+            email: const Value<String>('lakshmi.i@gmail.com'),
+            birthday: const Value<String?>('1986-08-03'),
+            joinDate: '2022-07-01',
+            visits: const Value<int>(34),
+            totalSpent: const Value<int>(31600),
+            points: const Value<int>(720),
+            membership: const Value<String?>('Silver'),
+            avatarInitials: 'LI',
+            lastVisit: const Value<String?>('2025-07-09'),
+            tags: const Value<String>('Regular')),
+      ]);
+
+      b.insertAll(services, <ServicesCompanion>[
+        ServicesCompanion.insert(
+            category: 'Hair',
+            name: 'Haircut & Style',
+            price: 500,
+            duration: 60,
+            popular: const Value<bool>(true)),
+        ServicesCompanion.insert(
+            category: 'Hair',
+            name: 'Hair Color (Global)',
+            price: 1800,
+            duration: 120,
+            popular: const Value<bool>(true)),
+        ServicesCompanion.insert(
+            category: 'Hair',
+            name: 'Highlights / Balayage',
+            price: 3500,
+            duration: 150),
+        ServicesCompanion.insert(
+            category: 'Hair',
+            name: 'Blowdry & Style',
+            price: 400,
+            duration: 45,
+            popular: const Value<bool>(true)),
+        ServicesCompanion.insert(
+            category: 'Hair',
+            name: 'Hair Spa',
+            price: 1200,
+            duration: 60,
+            popular: const Value<bool>(true)),
+        ServicesCompanion.insert(
+            category: 'Hair',
+            name: 'Keratin Treatment',
+            price: 5000,
+            duration: 180),
+        ServicesCompanion.insert(
+            category: 'Hair', name: 'Head Massage', price: 350, duration: 30),
+        ServicesCompanion.insert(
+            category: 'Skin',
+            name: 'Gold Facial',
+            price: 1200,
+            duration: 60,
+            popular: const Value<bool>(true)),
+        ServicesCompanion.insert(
+            category: 'Skin',
+            name: 'Cleanup',
+            price: 600,
+            duration: 45,
+            popular: const Value<bool>(true)),
+        ServicesCompanion.insert(
+            category: 'Skin',
+            name: 'Threading - Eyebrows',
+            price: 60,
+            duration: 10,
+            popular: const Value<bool>(true)),
+        ServicesCompanion.insert(
+            category: 'Skin',
+            name: 'Threading - Full Face',
+            price: 150,
+            duration: 20),
+        ServicesCompanion.insert(
+            category: 'Skin',
+            name: 'Waxing - Full Arms',
+            price: 300,
+            duration: 30,
+            popular: const Value<bool>(true)),
+        ServicesCompanion.insert(
+            category: 'Skin',
+            name: 'Waxing - Full Legs',
+            price: 500,
+            duration: 45,
+            popular: const Value<bool>(true)),
+        ServicesCompanion.insert(
+            category: 'Nails',
+            name: 'Manicure (Regular)',
+            price: 400,
+            duration: 45,
+            popular: const Value<bool>(true)),
+        ServicesCompanion.insert(
+            category: 'Nails',
+            name: 'Gel Manicure',
+            price: 700,
+            duration: 60,
+            popular: const Value<bool>(true)),
+        ServicesCompanion.insert(
+            category: 'Nails',
+            name: 'Pedicure (Regular)',
+            price: 600,
+            duration: 60,
+            popular: const Value<bool>(true)),
+        ServicesCompanion.insert(
+            category: 'Nails',
+            name: 'Pedicure (Spa)',
+            price: 900,
+            duration: 75),
+        ServicesCompanion.insert(
+            category: 'Others',
+            name: 'Mehendi (Hands)',
+            price: 300,
+            duration: 60),
+        ServicesCompanion.insert(
+            category: 'Others',
+            name: 'Bridal Package',
+            price: 15000,
+            duration: 480),
+      ]);
+
+      b.insertAll(inventoryItems, <InventoryItemsCompanion>[
+        InventoryItemsCompanion.insert(
+            name: 'Loreal Hair Color - Ash Blonde',
+            category: 'Hair',
+            stock: const Value<int>(3),
+            minStock: const Value<int>(5),
+            unit: 'box',
+            price: 850),
+        InventoryItemsCompanion.insert(
+            name: 'Schwarzkopf Developer 20V',
+            category: 'Hair',
+            stock: const Value<int>(8),
+            minStock: const Value<int>(4),
+            unit: 'bottle',
+            price: 420),
+        InventoryItemsCompanion.insert(
+            name: 'Gold Facial Kit',
+            category: 'Skin',
+            stock: const Value<int>(2),
+            minStock: const Value<int>(5),
+            unit: 'kit',
+            price: 650),
+        InventoryItemsCompanion.insert(
+            name: 'Rica Chocolate Wax',
+            category: 'Skin',
+            stock: const Value<int>(6),
+            minStock: const Value<int>(3),
+            unit: 'can',
+            price: 380),
+        InventoryItemsCompanion.insert(
+            name: 'OPI Nail Polish Set',
+            category: 'Nails',
+            stock: const Value<int>(1),
+            minStock: const Value<int>(2),
+            unit: 'set',
+            price: 1200),
+        InventoryItemsCompanion.insert(
+            name: 'Keratin Treatment Solution',
+            category: 'Hair',
+            stock: const Value<int>(4),
+            minStock: const Value<int>(2),
+            unit: 'bottle',
+            price: 1800),
+        InventoryItemsCompanion.insert(
+            name: 'Hair Spa Cream',
+            category: 'Hair',
+            stock: const Value<int>(12),
+            minStock: const Value<int>(5),
+            unit: 'jar',
+            price: 450),
+        InventoryItemsCompanion.insert(
+            name: 'Rose Water Toner',
+            category: 'Skin',
+            stock: const Value<int>(9),
+            minStock: const Value<int>(3),
+            unit: 'bottle',
+            price: 220),
+        InventoryItemsCompanion.insert(
+            name: 'Nail Gel (UV)',
+            category: 'Nails',
+            stock: const Value<int>(3),
+            minStock: const Value<int>(4),
+            unit: 'tube',
+            price: 680),
+        InventoryItemsCompanion.insert(
+            name: 'Threading Cotton Rolls',
+            category: 'Others',
+            stock: const Value<int>(20),
+            minStock: const Value<int>(10),
+            unit: 'roll',
+            price: 45),
+      ]);
+
+      b.insertAll(expenses, <ExpensesCompanion>[
+        ExpensesCompanion.insert(
+            date: '2025-07-12',
+            category: 'Products',
+            description: 'Loreal Color Stock Refill',
+            amount: 4200,
+            method: 'UPI'),
+        ExpensesCompanion.insert(
+            date: '2025-07-10',
+            category: 'Utilities',
+            description: 'Electricity Bill',
+            amount: 2800,
+            method: 'Online'),
+        ExpensesCompanion.insert(
+            date: '2025-07-08',
+            category: 'Products',
+            description: 'Rica Wax Supply',
+            amount: 1900,
+            method: 'Cash'),
+        ExpensesCompanion.insert(
+            date: '2025-07-05',
+            category: 'Rent',
+            description: 'Monthly Rent',
+            amount: 12000,
+            method: 'Bank Transfer'),
+        ExpensesCompanion.insert(
+            date: '2025-07-03',
+            category: 'Misc',
+            description: 'Cleaning Supplies',
+            amount: 450,
+            method: 'Cash'),
+        ExpensesCompanion.insert(
+            date: '2025-07-01',
+            category: 'Staff',
+            description: 'Assistant Salary',
+            amount: 8000,
+            method: 'Bank Transfer'),
+      ]);
+
+      final String today = DateTime.now().toIso8601String().substring(0, 10);
+      b.insertAll(appointments, <AppointmentsCompanion>[
+        AppointmentsCompanion.insert(
+            customerId: 7,
+            customerName: 'Pooja Mehta',
+            services: 'Hair Color (Global),Blowdry & Style',
+            date: today,
+            time: '10:00 AM',
+            durationMinutes: const Value<int>(120),
+            amount: const Value<int>(2400),
+            status: const Value<String>('completed')),
+        AppointmentsCompanion.insert(
+            customerId: 9,
+            customerName: 'Rekha Singh',
+            services: 'Gold Facial,Threading - Eyebrows',
+            date: today,
+            time: '11:30 AM',
+            durationMinutes: const Value<int>(90),
+            amount: const Value<int>(1200),
+            status: const Value<String>('completed')),
+        AppointmentsCompanion.insert(
+            customerId: 4,
+            customerName: 'Meera Joshi',
+            services: 'Haircut & Style',
+            date: today,
+            time: '02:00 PM',
+            durationMinutes: const Value<int>(60),
+            amount: const Value<int>(600),
+            status: const Value<String>('confirmed')),
+        AppointmentsCompanion.insert(
+            customerId: 6,
+            customerName: 'Deepika Nair',
+            services: 'Manicure (Regular),Pedicure (Regular)',
+            date: today,
+            time: '03:30 PM',
+            durationMinutes: const Value<int>(75),
+            amount: const Value<int>(900),
+            status: const Value<String>('confirmed')),
+        AppointmentsCompanion.insert(
+            customerId: 1,
+            customerName: 'Anita Verma',
+            services: 'Hair Spa,Head Massage',
+            date: today,
+            time: '05:00 PM',
+            durationMinutes: const Value<int>(90),
+            amount: const Value<int>(1400),
+            status: const Value<String>('pending')),
+      ]);
+    });
+  }
+}
+
+LazyDatabase _openConnection() {
+  return LazyDatabase(() async {
+    final Directory directory = await getApplicationDocumentsDirectory();
+    final File file = File(p.join(directory.path, AppConstants.databaseName));
+    return NativeDatabase.createInBackground(file);
+  });
+}

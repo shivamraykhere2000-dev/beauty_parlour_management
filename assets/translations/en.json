@@ -1,0 +1,15 @@
+{
+  "app": {
+    "name": "Blossom",
+    "tagline": "Beauty Parlour Management"
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "confirm": "Confirm",
+    "retry": "Retry",
+    "search": "Search"
+  }
+}
