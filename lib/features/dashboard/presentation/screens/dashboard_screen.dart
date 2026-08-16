@@ -1,6 +1,8 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/database/app_database.dart';
 import '../../../../core/providers/path_provider.dart';
@@ -34,12 +36,22 @@ class DashboardScreen extends ConsumerWidget {
     final String today = DateTime.now().toIso8601String().substring(0, 10);
     final String todayMonthDay = today.substring(5); // MM-DD
 
+    // Idempotent housekeeping: purge notifications older than 15 days,
+    // and ensure today's birthday/low-stock notifications exist.
+    ref.watch(notificationsPurgeProvider);
+    ref.watch(autoNotificationsSyncProvider);
+
     final AsyncValue<List<Appointment>> apptsAsync =
         ref.watch(appointmentsForDateProvider(today));
     final AsyncValue<List<Customer>> customersAsync =
         ref.watch(customersProvider);
     final AsyncValue<List<InventoryItem>> inventoryAsync =
         ref.watch(inventoryProvider);
+    final String ownerName = ref.watch(settingsProvider).maybeWhen(
+              data: (Map<String, String> m) => m['owner_name'],
+              orElse: () => null,
+            ) ??
+        'there';
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -74,7 +86,8 @@ class DashboardScreen extends ConsumerWidget {
                       _Header(
                           earned: earned,
                           completed: completed,
-                          total: appts.length),
+                          total: appts.length,
+                          ownerName: ownerName),
                       Expanded(
                         child: ListView(
                           padding: EdgeInsets.fromLTRB(AppSpacing.md,
@@ -108,7 +121,10 @@ class DashboardScreen extends ConsumerWidget {
                             _MonthlyRevenueCard(earned: earned),
                             if (birthdays.isNotEmpty) ...<Widget>[
                               SizedBox(height: AppSpacing.md),
-                              _BirthdaysCard(birthdays: birthdays),
+                              _BirthdaysCard(
+                                  birthdays: birthdays,
+                                  onWish: (Customer c) =>
+                                      sendBirthdayWish(context, ref, c)),
                             ],
                             SizedBox(height: AppSpacing.md),
                             _SectionHeader(
@@ -157,11 +173,22 @@ class DashboardScreen extends ConsumerWidget {
 
 class _Header extends StatelessWidget {
   const _Header(
-      {required this.earned, required this.completed, required this.total});
+      {required this.earned,
+      required this.completed,
+      required this.total,
+      required this.ownerName});
 
   final int earned;
   final int completed;
   final int total;
+  final String ownerName;
+
+  String get _greeting {
+    final int hour = DateTime.now().hour;
+    if (hour < 12) return 'Good Morning';
+    if (hour < 17) return 'Good Afternoon';
+    return 'Good Evening';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -186,15 +213,18 @@ class _Header extends StatelessWidget {
                                 Colors.white.withValues(alpha: 0.65))
                             .copyWith(letterSpacing: 1.5, fontSize: 10.sp)),
                     SizedBox(height: 2.h),
-                    Text('Good Morning, Priya ✨',
+                    Text('$_greeting, $ownerName ✨',
                         style: AppTypography.h2(Colors.white)),
                   ],
                 ),
               ),
-              _CircleIconButton(
+              Builder(
+                builder: (BuildContext context) => _CircleIconButton(
                   icon: Icons.notifications_outlined,
                   showDot: true,
-                  onTap: () {}),
+                  onTap: () => showNotificationsSheet(context),
+                ),
+              ),
             ],
           ),
           SizedBox(height: AppSpacing.md),
@@ -375,9 +405,10 @@ class _MonthlyRevenueCard extends StatelessWidget {
 }
 
 class _BirthdaysCard extends StatelessWidget {
-  const _BirthdaysCard({required this.birthdays});
+  const _BirthdaysCard({required this.birthdays, required this.onWish});
 
   final List<Customer> birthdays;
+  final ValueChanged<Customer> onWish;
 
   @override
   Widget build(BuildContext context) {
@@ -418,7 +449,7 @@ class _BirthdaysCard extends StatelessWidget {
                     ),
                   ),
                   ElevatedButton.icon(
-                    onPressed: () {},
+                    onPressed: () => onWish(c),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF25D366),
                       foregroundColor: Colors.white,
@@ -637,5 +668,239 @@ class _QuickActionsGrid extends StatelessWidget {
         );
       },
     );
+  }
+}
+
+// ============================================================================
+// Birthday WhatsApp wish (dashboard birthday card "Wish" button)
+// ============================================================================
+
+/// Looks up the "Birthday Wishes" template (falls back to a sensible
+/// default if the owner has deleted it), substitutes the customer's name,
+/// and opens WhatsApp directly on that customer's chat with the message
+/// prefilled — the owner still presses Send themselves.
+Future<void> sendBirthdayWish(
+    BuildContext context, WidgetRef ref, Customer customer) async {
+  final List<WhatsappTemplate> templates =
+      ref.read(whatsappTemplatesProvider).maybeWhen(
+            data: (List<WhatsappTemplate> t) => t,
+            orElse: () => const <WhatsappTemplate>[],
+          );
+  final WhatsappTemplate? template = templates
+      .where((WhatsappTemplate t) => t.type == 'Birthday Wishes')
+      .firstOrNull;
+  final String body = (template?.body ??
+          'Happy Birthday {{name}}! 🎉🌸 Enjoy 20% OFF your next visit this week.')
+      .replaceAll('{{name}}', customer.name);
+
+  final String digits = customer.phone.replaceAll(RegExp(r'[^0-9]'), '');
+  if (digits.isEmpty) {
+    if (context.mounted)
+      AppSnackBar.show(context,
+          message: '${customer.name} has no phone number saved.',
+          type: AppSnackBarType.error);
+    return;
+  }
+  final String withCountryCode = digits.length == 10 ? '91$digits' : digits;
+  final Uri uri = Uri.parse(
+      'https://wa.me/$withCountryCode?text=${Uri.encodeComponent(body)}');
+  await launchUrl(uri, mode: LaunchMode.externalApplication);
+}
+
+// ============================================================================
+// Notifications sheet (dashboard bell)
+// ============================================================================
+
+/// Opens the notification list as a modal bottom sheet — birthday alerts,
+/// low-stock warnings, and any other notification the app has logged.
+/// Notifications older than 15 days are purged automatically elsewhere
+/// (see [notificationsPurgeProvider]); this sheet also offers "Clear All".
+void showNotificationsSheet(BuildContext context) {
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (BuildContext context) => const _NotificationsSheet(),
+  );
+}
+
+class _NotificationsSheet extends ConsumerWidget {
+  const _NotificationsSheet();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final AsyncValue<List<AppNotification>> notificationsAsync =
+        ref.watch(notificationsProvider);
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.65,
+      minChildSize: 0.4,
+      maxChildSize: 0.9,
+      expand: false,
+      builder: (BuildContext context, ScrollController scrollController) {
+        return Container(
+          decoration: BoxDecoration(
+            color: AppColors.background,
+            borderRadius: BorderRadius.vertical(
+                top: Radius.circular(AppDimensions.radiusXl)),
+          ),
+          child: Column(
+            children: <Widget>[
+              SizedBox(height: AppSpacing.sm),
+              Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                      color: AppColors.border,
+                      borderRadius:
+                          BorderRadius.circular(AppDimensions.radiusPill))),
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                    AppSpacing.md, AppSpacing.sm, AppSpacing.md, AppSpacing.xs),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: <Widget>[
+                    Text('Notifications',
+                        style: AppTypography.h3(AppColors.foreground)
+                            .copyWith(fontSize: 16.sp)),
+                    notificationsAsync.maybeWhen(
+                      data: (List<AppNotification> list) => list.isEmpty
+                          ? const SizedBox.shrink()
+                          : TextButton(
+                              onPressed: () => _confirmClearAll(context, ref),
+                              child: Text('Clear All',
+                                  style: AppTypography.caption(
+                                          AppColors.destructive)
+                                      .copyWith(
+                                          fontWeight: AppTypography.bold)),
+                            ),
+                      orElse: () => const SizedBox.shrink(),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: notificationsAsync.when(
+                  loading: () => const LoadingWidget(),
+                  error: (Object e, _) => AppErrorWidget(message: '$e'),
+                  data: (List<AppNotification> list) {
+                    if (list.isEmpty) {
+                      return const EmptyWidget(
+                          icon: Icons.notifications_none,
+                          title: 'No notifications',
+                          message: "You're all caught up.");
+                    }
+                    return ListView.builder(
+                      controller: scrollController,
+                      padding: EdgeInsets.fromLTRB(
+                          AppSpacing.md, 0, AppSpacing.md, AppSpacing.xl),
+                      itemCount: list.length,
+                      itemBuilder: (BuildContext context, int i) {
+                        final AppNotification n = list[i];
+                        return Padding(
+                          padding: EdgeInsets.only(bottom: AppSpacing.sm),
+                          child: AppCard(
+                            onTap: n.read
+                                ? null
+                                : () => ref
+                                    .read(appNotificationsDaoProvider)
+                                    .markNotificationRead(n.id),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Container(
+                                  width: 36.r,
+                                  height: 36.r,
+                                  decoration: BoxDecoration(
+                                      color: _colorFor(n.type)
+                                          .withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(
+                                          AppDimensions.radiusMd)),
+                                  child: Icon(_iconFor(n.type),
+                                      size: AppDimensions.iconSm,
+                                      color: _colorFor(n.type)),
+                                ),
+                                SizedBox(width: AppSpacing.sm),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: <Widget>[
+                                      Text(n.title,
+                                          style: AppTypography.label(
+                                                  AppColors.foreground)
+                                              .copyWith(
+                                                  fontWeight: n.read
+                                                      ? AppTypography.medium
+                                                      : AppTypography.bold)),
+                                      SizedBox(height: 2.h),
+                                      Text(n.body,
+                                          style: AppTypography.caption(
+                                              AppColors.mutedForeground)),
+                                    ],
+                                  ),
+                                ),
+                                if (!n.read)
+                                  Container(
+                                      width: 8,
+                                      height: 8,
+                                      margin: const EdgeInsets.only(top: 4),
+                                      decoration: const BoxDecoration(
+                                          color: AppColors.primary,
+                                          shape: BoxShape.circle)),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _confirmClearAll(BuildContext context, WidgetRef ref) async {
+    final bool confirmed = await ConfirmationDialog.show(
+      context,
+      title: 'Clear All Notifications?',
+      message:
+          'This will permanently remove every notification. This cannot be undone.',
+      confirmLabel: 'Clear All',
+      isDestructive: true,
+    );
+    if (confirmed) {
+      await ref.read(appNotificationsDaoProvider).clearAllNotifications();
+    }
+  }
+
+  IconData _iconFor(String type) {
+    switch (type) {
+      case 'birthday':
+        return Icons.card_giftcard;
+      case 'lowStock':
+        return Icons.warning_amber_rounded;
+      case 'appointment':
+        return Icons.calendar_today_outlined;
+      default:
+        return Icons.notifications_none;
+    }
+  }
+
+  Color _colorFor(String type) {
+    switch (type) {
+      case 'birthday':
+        return AppColors.primary;
+      case 'lowStock':
+        return const Color(0xFFF59E0B);
+      case 'appointment':
+        return AppColors.accent;
+      default:
+        return AppColors.mutedForeground;
+    }
   }
 }

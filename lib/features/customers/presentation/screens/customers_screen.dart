@@ -8,10 +8,15 @@ import '../../../../core/theme/theme.dart';
 import '../../../../shared/widgets/widgets.dart';
 
 class CustomersScreen extends ConsumerStatefulWidget {
-  const CustomersScreen({super.key, this.onAddCustomer, this.onOpenCustomer});
+  const CustomersScreen(
+      {super.key,
+      this.onAddCustomer,
+      this.onOpenCustomer,
+      this.onEditCustomer});
 
   final VoidCallback? onAddCustomer;
   final ValueChanged<Customer>? onOpenCustomer;
+  final ValueChanged<Customer>? onEditCustomer;
 
   @override
   ConsumerState<CustomersScreen> createState() => _CustomersScreenState();
@@ -182,7 +187,8 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                             for (final Customer c in list) ...<Widget>[
                               _CustomerRow(
                                   customer: c,
-                                  onTap: () => widget.onOpenCustomer?.call(c)),
+                                  onTap: () => widget.onOpenCustomer?.call(c),
+                                  onEdit: () => widget.onEditCustomer?.call(c)),
                               SizedBox(height: AppSpacing.sm),
                             ],
                           ],
@@ -200,10 +206,12 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
 }
 
 class _CustomerRow extends StatelessWidget {
-  const _CustomerRow({required this.customer, required this.onTap});
+  const _CustomerRow(
+      {required this.customer, required this.onTap, required this.onEdit});
 
   final Customer customer;
   final VoidCallback onTap;
+  final VoidCallback onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -260,7 +268,22 @@ class _CustomerRow extends StatelessWidget {
               ],
             ),
           ),
-          const Icon(Icons.chevron_right, color: Color(0xFFC9B0B8)),
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              InkWell(
+                onTap: onEdit,
+                borderRadius: BorderRadius.circular(AppDimensions.radiusPill),
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Icon(Icons.edit_outlined,
+                      size: 16, color: AppColors.primary),
+                ),
+              ),
+              SizedBox(height: 4.h),
+              const Icon(Icons.chevron_right, color: Color(0xFFC9B0B8)),
+            ],
+          ),
         ],
       ),
     );

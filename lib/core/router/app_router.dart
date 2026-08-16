@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/appointments/presentation/screens/book_appointment_screen.dart';
+import '../../features/auth/presentation/screens/owner_setup_screen.dart';
 import '../../features/auth/presentation/screens/pin_lock_screen.dart';
 import '../../features/auth/presentation/screens/splash_screen.dart';
 import '../../features/backup/presentation/screens/backup_screen.dart';
@@ -18,6 +19,7 @@ import '../../features/packages/presentation/screens/packages_screen.dart';
 import '../../features/services/presentation/screens/services_screen.dart';
 import '../../features/whatsapp/presentation/screens/whatsapp_screen.dart';
 import '../config/route_constants.dart';
+import '../database/app_database.dart';
 import '../shell/root_shell.dart';
 
 /// Root [GoRouter] configuration.
@@ -49,6 +51,14 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
             const PinLockScreen(),
       ),
       GoRoute(
+        path: RouteConstants.ownerSetup,
+        name: RouteConstants.ownerSetupName,
+        builder: (BuildContext context, GoRouterState state) =>
+            OwnerSetupScreen(
+          onComplete: () => context.goNamed(RouteConstants.rootName),
+        ),
+      ),
+      GoRoute(
         path: RouteConstants.root,
         name: RouteConstants.rootName,
         builder: (BuildContext context, GoRouterState state) =>
@@ -68,6 +78,8 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
             onBack: () => context.pop(),
             onBookAppointment: () =>
                 context.pushNamed(RouteConstants.bookAppointmentName),
+            onEdit: (Customer c) =>
+                context.pushNamed(RouteConstants.addCustomerName, extra: c),
           );
         },
       ),
@@ -76,6 +88,7 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
         name: RouteConstants.addCustomerName,
         builder: (BuildContext context, GoRouterState state) =>
             AddCustomerScreen(
+          // existingCustomer: state.extra as Customer?,
           onBack: () => context.pop(),
           onSaved: () => context.pop(),
         ),

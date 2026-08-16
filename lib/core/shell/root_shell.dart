@@ -30,7 +30,7 @@ class _RootShellState extends State<RootShell> {
     switch (label) {
       case 'Add Client':
       case 'Customers':
-        context.pushNamed(RouteConstants.addCustomerName);
+        setState(() => _tabIndex = 2);
       case 'New Appt':
       case 'Appointments':
         context.pushNamed(RouteConstants.bookAppointmentName);
@@ -53,10 +53,22 @@ class _RootShellState extends State<RootShell> {
     FabMenu.show(
       context,
       items: <FabMenuItem>[
-        FabMenuItem(label: 'New Appointment', icon: Icons.calendar_today_outlined, onTap: () => context.pushNamed(RouteConstants.bookAppointmentName)),
-        FabMenuItem(label: 'Add Customer', icon: Icons.person_add_alt_outlined, onTap: () => context.pushNamed(RouteConstants.addCustomerName)),
-        FabMenuItem(label: 'New Expense', icon: Icons.account_balance_wallet_outlined, onTap: () => context.pushNamed(RouteConstants.expensesName)),
-        FabMenuItem(label: 'Generate Invoice', icon: Icons.credit_card_outlined, onTap: () => context.pushNamed(RouteConstants.billingName)),
+        FabMenuItem(
+            label: 'New Appointment',
+            icon: Icons.calendar_today_outlined,
+            onTap: () => context.pushNamed(RouteConstants.bookAppointmentName)),
+        FabMenuItem(
+            label: 'Add Customer',
+            icon: Icons.person_add_alt_outlined,
+            onTap: () => setState(() => _tabIndex = 2)),
+        FabMenuItem(
+            label: 'New Expense',
+            icon: Icons.account_balance_wallet_outlined,
+            onTap: () => context.pushNamed(RouteConstants.expensesName)),
+        FabMenuItem(
+            label: 'Generate Invoice',
+            icon: Icons.credit_card_outlined,
+            onTap: () => context.pushNamed(RouteConstants.billingName)),
       ],
     );
   }
@@ -66,19 +78,26 @@ class _RootShellState extends State<RootShell> {
     final List<Widget> tabs = <Widget>[
       DashboardScreen(onQuickAction: _handleQuickAction),
       AppointmentsScreen(
-        onBookAppointment: () => context.pushNamed(RouteConstants.bookAppointmentName),
-        onBillAppointment: (int appointmentId) => context.pushNamed(RouteConstants.billingName, extra: appointmentId),
+        onBookAppointment: () =>
+            context.pushNamed(RouteConstants.bookAppointmentName),
+        onBillAppointment: (int appointmentId) =>
+            context.pushNamed(RouteConstants.billingName, extra: appointmentId),
       ),
       CustomersScreen(
         onAddCustomer: () => context.pushNamed(RouteConstants.addCustomerName),
-        onOpenCustomer: (Customer c) => context.pushNamed(RouteConstants.customerDetailName, extra: c.id),
+        onOpenCustomer: (Customer c) =>
+            context.pushNamed(RouteConstants.customerDetailName, extra: c.id),
+        onEditCustomer: (Customer c) =>
+            context.pushNamed(RouteConstants.addCustomerName, extra: c),
       ),
       const ReportsScreen(),
       SettingsScreen(
         onOpenBackup: () => context.pushNamed(RouteConstants.backupName),
-        onOpenNotifications: () => context.pushNamed(RouteConstants.notificationsName),
+        onOpenNotifications: () =>
+            context.pushNamed(RouteConstants.notificationsName),
         onOpenWhatsApp: () => context.pushNamed(RouteConstants.whatsappName),
-        onOpenMemberships: () => context.pushNamed(RouteConstants.membershipsName),
+        onOpenMemberships: () =>
+            context.pushNamed(RouteConstants.membershipsName),
         onOpenPackages: () => context.pushNamed(RouteConstants.packagesName),
         onOpenLoyalty: () => context.pushNamed(RouteConstants.loyaltyName),
         onLockNow: () => context.goNamed(RouteConstants.pinLockName),

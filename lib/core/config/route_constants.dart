@@ -9,6 +9,9 @@ abstract class RouteConstants {
   static const String pinLock = '/pin-lock';
   static const String pinLockName = 'pinLock';
 
+  static const String ownerSetup = '/owner-setup';
+  static const String ownerSetupName = 'ownerSetup';
+
   static const String root = '/';
   static const String rootName = 'root';
 

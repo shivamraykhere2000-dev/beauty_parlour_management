@@ -1,4 +1,5 @@
 import 'package:beauty_parlour_management/core/database/daos/customers_dao.dart';
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -18,11 +19,13 @@ class CustomerDetailScreen extends ConsumerStatefulWidget {
       {required this.customerId,
       super.key,
       this.onBack,
-      this.onBookAppointment});
+      this.onBookAppointment,
+      this.onEdit});
 
   final int customerId;
   final VoidCallback? onBack;
   final VoidCallback? onBookAppointment;
+  final ValueChanged<Customer>? onEdit;
 
   @override
   ConsumerState<CustomerDetailScreen> createState() =>
@@ -67,7 +70,8 @@ class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen> {
             tab: _tab,
             onTabChanged: (int t) => setState(() => _tab = t),
             onBack: widget.onBack,
-            onBookAppointment: widget.onBookAppointment);
+            onBookAppointment: widget.onBookAppointment,
+            onEdit: widget.onEdit);
       },
     );
   }
@@ -80,7 +84,8 @@ class _Body extends ConsumerWidget {
       required this.tab,
       required this.onTabChanged,
       this.onBack,
-      this.onBookAppointment});
+      this.onBookAppointment,
+      this.onEdit});
 
   final Customer customer;
   final List<Appointment> visits;
@@ -88,6 +93,7 @@ class _Body extends ConsumerWidget {
   final ValueChanged<int> onTabChanged;
   final VoidCallback? onBack;
   final VoidCallback? onBookAppointment;
+  final ValueChanged<Customer>? onEdit;
 
   static const List<String> _tabs = <String>['Overview', 'Visits', 'Notes'];
 
@@ -132,6 +138,12 @@ class _Body extends ConsumerWidget {
                         child: Text('Customer Profile',
                             style: AppTypography.label(Colors.white)
                                 .copyWith(fontWeight: AppTypography.semiBold))),
+                    InkWell(
+                      onTap: () => onEdit?.call(customer),
+                      child: const Icon(Icons.edit_outlined,
+                          color: Colors.white, size: 20),
+                    ),
+                    SizedBox(width: AppSpacing.md),
                     InkWell(
                       onTap: () => _confirmDelete(context, ref),
                       child: const Icon(Icons.delete_outline,

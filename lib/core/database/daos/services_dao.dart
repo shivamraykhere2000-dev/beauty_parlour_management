@@ -9,6 +9,9 @@ part 'services_dao.g.dart';
 class ServicesDao extends DatabaseAccessor<AppDatabase>
     with _$ServicesDaoMixin {
   ServicesDao(super.db);
+  // =========================================================================
+  // Services
+  // =========================================================================
 
   Stream<List<Service>> watchServices() => select(services).watch();
 

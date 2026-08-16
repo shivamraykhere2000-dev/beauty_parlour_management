@@ -9,6 +9,9 @@ part 'appointments_dao.g.dart';
 class AppointmentsDao extends DatabaseAccessor<AppDatabase>
     with _$AppointmentsDaoMixin {
   AppointmentsDao(super.db);
+// =========================================================================
+  // Appointments
+  // =========================================================================
 
   Stream<List<Appointment>> watchAppointmentsForDate(String date) =>
       (select(appointments)

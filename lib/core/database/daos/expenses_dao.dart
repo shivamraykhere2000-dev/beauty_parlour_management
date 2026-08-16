@@ -10,6 +10,10 @@ class ExpensesDao extends DatabaseAccessor<AppDatabase>
     with _$ExpensesDaoMixin {
   ExpensesDao(AppDatabase db) : super(db);
 
+  // =========================================================================
+  // Expenses
+  // =========================================================================
+
   Stream<List<Expense>> watchExpenses() => (select(expenses)
         ..orderBy(<OrderingTerm Function($ExpensesTable)>[
           (t) => OrderingTerm.desc(t.id)

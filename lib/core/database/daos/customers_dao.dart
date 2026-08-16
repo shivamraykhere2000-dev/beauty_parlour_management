@@ -10,9 +10,9 @@ class CustomersDao extends DatabaseAccessor<AppDatabase>
     with _$CustomersDaoMixin {
   CustomersDao(super.db);
 
-// =========================================================================
-// Customers
-// =========================================================================
+  // =========================================================================
+  // Customers
+  // =========================================================================
 
   Stream<List<Customer>> watchCustomers() => (select(customers)
         ..orderBy(<OrderingTerm Function($CustomersTable)>[

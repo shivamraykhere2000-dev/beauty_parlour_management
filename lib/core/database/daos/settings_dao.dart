@@ -1,39 +1,32 @@
-// import 'package:drift/drift.dart';
-//
-// import '../app_database.dart';
-// import '../tables/settings.dart';
-//
-// part 'settings_dao.g.dart';
-//
-// @DriftAccessor(tables: [Settings])
-// class SettingsDao extends DatabaseAccessor<AppDatabase>
-//     with _$SettingsDaoMixin {
-//   SettingsDao(AppDatabase db) : super(db);
-//
-//   Future<List<Setting>> getSettings() => select(settings).get();
-//
-//   Stream<List<Setting>> watchSettings() => select(settings).watch();
-//
-//   Future<Setting?> getSetting(
-//     String key,
-//   ) {
-//     return (select(settings)..where((tbl) => tbl.settingKey.equals(key)))
-//         .getSingleOrNull();
-//   }
-//
-//   Future<int> insertSetting(
-//     SettingsCompanion data,
-//   ) {
-//     return into(settings).insert(data);
-//   }
-//
-//   Future<bool> updateSetting(
-//     Setting data,
-//   ) {
-//     return update(settings).replace(data);
-//   }
-//
-//   Future<int> deleteSetting(int id) {
-//     return (delete(settings)..where((tbl) => tbl.id.equals(id))).go();
-//   }
-// }
+import 'package:drift/drift.dart';
+
+import '../app_database.dart';
+import '../tables/settings.dart';
+
+part 'settings_dao.g.dart';
+
+@DriftAccessor(tables: [Settings])
+class SettingsDao extends DatabaseAccessor<AppDatabase>
+    with _$SettingsDaoMixin {
+  SettingsDao(super.db);
+
+  Future<String?> getSetting(String key) async {
+    final Setting? row = await (select(settings)
+          ..where((t) => t.key.equals(key)))
+        .getSingleOrNull();
+    return row?.value;
+  }
+
+  Stream<Map<String, String>> watchSettings() {
+    return select(settings).watch().map((List<Setting> rows) =>
+        <String, String>{for (final Setting r in rows) r.key: r.value});
+  }
+
+  Future<void> setSetting(String key, String value) async {
+    await into(settings).insertOnConflictUpdate(
+        SettingsCompanion.insert(key: key, value: value));
+  }
+
+  Future<bool> isAppInitialized() async =>
+      (await getSetting('app_initialized')) == 'true';
+}

@@ -1,21 +1,30 @@
 import 'dart:io';
 
+import 'package:beauty_parlour_management/core/database/tables/appNotifications.dart';
 import 'package:beauty_parlour_management/core/database/tables/appointments.dart';
 import 'package:beauty_parlour_management/core/database/tables/customers.dart';
 import 'package:beauty_parlour_management/core/database/tables/expenses.dart';
 import 'package:beauty_parlour_management/core/database/tables/inventoryitems.dart';
 import 'package:beauty_parlour_management/core/database/tables/services.dart';
+import 'package:beauty_parlour_management/core/database/tables/settings.dart';
+import 'package:beauty_parlour_management/core/database/tables/whatsappTemplates.dart';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:path/path.dart' as p;
+import 'package:drift/drift.dart' show Value;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import 'package:path_provider/path_provider.dart';
 
 import '../config/app_constants.dart';
+import 'daos/appnotifications_dao.dart';
 import 'daos/appointments_dao.dart';
 import 'daos/customers_dao.dart';
 import 'daos/expenses_dao.dart';
 import 'daos/inventoryitems_dao.dart';
 import 'daos/services_dao.dart';
+import 'daos/settings_dao.dart';
+import 'daos/whatsapptemplates_dao.dart';
 
 part 'app_database.g.dart';
 
@@ -26,6 +35,9 @@ part 'app_database.g.dart';
     Customers,
     Services,
     InventoryItems,
+    WhatsappTemplates,
+    Settings,
+    AppNotifications,
   ],
   daos: [
     AppointmentsDao,
@@ -33,6 +45,9 @@ part 'app_database.g.dart';
     ExpensesDao,
     InventoryitemsDao,
     ServicesDao,
+    SettingsDao,
+    WhatsappTemplatesDao,
+    AppNotificationsDao,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -42,7 +57,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.withExecutor(super.executor);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration {
@@ -50,6 +65,17 @@ class AppDatabase extends _$AppDatabase {
       onCreate: (Migrator m) async {
         await m.createAll();
         await _seed();
+        await _seedWhatsappTemplates();
+      },
+      onUpgrade: (Migrator m, int from, int to) async {
+        if (from < 2) {
+          // Additive only — existing Customers/Appointments/Services/
+          // InventoryItems/Expenses data and schema are untouched.
+          await m.createTable(settings);
+          await m.createTable(appNotifications);
+          await m.createTable(whatsappTemplates);
+          await _seedWhatsappTemplates();
+        }
       },
     );
   }
@@ -60,13 +86,30 @@ class AppDatabase extends _$AppDatabase {
   // is a thin wrapper around this that can be added once OAuth is wired up
   // without touching this method.
   // =========================================================================
+  Future<void> _seedWhatsappTemplates() async {
+    final int existing = await select(whatsappTemplates)
+        .get()
+        .then((List<WhatsappTemplate> r) => r.length);
 
+    if (existing > 0) return;
+
+    await batch((Batch b) {
+      b.insertAll(whatsappTemplates, <WhatsappTemplatesCompanion>[
+        // ...
+      ]);
+    });
+  }
   Future<Map<String, dynamic>> exportToJson() async {
     final List<Customer> allCustomers = await select(customers).get();
     final List<Appointment> allAppointments = await select(appointments).get();
     final List<Service> allServices = await select(services).get();
     final List<InventoryItem> allInventory = await select(inventoryItems).get();
     final List<Expense> allExpenses = await select(expenses).get();
+    final List<Setting> allSettings = await select(settings).get();
+    final List<AppNotification> allNotifications =
+        await select(appNotifications).get();
+    final List<WhatsappTemplate> allTemplates =
+        await select(whatsappTemplates).get();
 
     return <String, dynamic>{
       'version': schemaVersion,
@@ -78,6 +121,11 @@ class AppDatabase extends _$AppDatabase {
       'inventoryItems':
           allInventory.map((InventoryItem i) => i.toJson()).toList(),
       'expenses': allExpenses.map((Expense e) => e.toJson()).toList(),
+      'settings': allSettings.map((Setting s) => s.toJson()).toList(),
+      'notifications':
+          allNotifications.map((AppNotification n) => n.toJson()).toList(),
+      'whatsappTemplates':
+          allTemplates.map((WhatsappTemplate t) => t.toJson()).toList(),
     };
   }
 
@@ -90,6 +138,9 @@ class AppDatabase extends _$AppDatabase {
       await delete(appointments).go();
       await delete(services).go();
       await delete(customers).go();
+      await delete(settings).go();
+      await delete(appNotifications).go();
+      await delete(whatsappTemplates).go();
 
       final List<dynamic> customersJson =
           (data['customers'] as List<dynamic>?) ?? <dynamic>[];
@@ -121,6 +172,29 @@ class AppDatabase extends _$AppDatabase {
       for (final dynamic e in expensesJson) {
         await into(expenses).insert(
             Expense.fromJson(e as Map<String, dynamic>).toCompanion(true));
+      }
+      final List<dynamic> settingsJson =
+          (data['settings'] as List<dynamic>?) ?? <dynamic>[];
+      for (final dynamic s in settingsJson) {
+        await into(settings).insert(
+            Setting.fromJson(s as Map<String, dynamic>).toCompanion(true));
+      }
+      final List<dynamic> notificationsJson =
+          (data['notifications'] as List<dynamic>?) ?? <dynamic>[];
+      for (final dynamic n in notificationsJson) {
+        await into(appNotifications).insert(
+            AppNotification.fromJson(n as Map<String, dynamic>)
+                .toCompanion(true));
+      }
+      final List<dynamic> templatesJson =
+          (data['whatsappTemplates'] as List<dynamic>?) ?? <dynamic>[];
+      for (final dynamic t in templatesJson) {
+        await into(whatsappTemplates).insert(
+            WhatsappTemplate.fromJson(t as Map<String, dynamic>)
+                .toCompanion(true));
+      }
+      if (templatesJson.isEmpty) {
+        await _seedWhatsappTemplates();
       }
     });
   }
