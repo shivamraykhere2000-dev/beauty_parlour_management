@@ -4,6 +4,7 @@ import '../database/app_database.dart';
 import '../database/daos/appnotifications_dao.dart';
 import '../database/daos/customers_dao.dart';
 import '../database/daos/inventoryitems_dao.dart';
+import '../services/google_drive_backup_service.dart';
 
 /// The single [AppDatabase] instance, resolved from GetIt.
 final databaseProvider = Provider<AppDatabase>((ref) {
@@ -63,6 +64,9 @@ final appNotificationsDaoProvider = Provider((ref) {
 
   return db.appNotificationsDao;
 });
+
+final Provider<GoogleDriveBackupService> googleDriveBackupServiceProvider =
+    Provider<GoogleDriveBackupService>((ref) => GoogleDriveBackupService());
 
 /// Live, always-up-to-date customer list — updates automatically whenever
 /// a customer is added, edited or a visit is recorded.
