@@ -117,6 +117,11 @@ final StreamProvider<List<WhatsappTemplate>> whatsappTemplatesProvider =
     StreamProvider<List<WhatsappTemplate>>((ref) =>
         ref.watch(whatsappTemplatesDaoProvider).watchWhatsappTemplates());
 
+final FutureProvider<void> ensureWhatsappTemplatesSeededProvider =
+    FutureProvider<void>((ref) async {
+  await ref.watch(databaseProvider).ensureWhatsappTemplatesSeeded();
+});
+
 /// One-shot, idempotent housekeeping: deletes notifications older than 15
 /// days. Watched from the Dashboard on every build — cheap no-op when
 /// there's nothing stale to remove.

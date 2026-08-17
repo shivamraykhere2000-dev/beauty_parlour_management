@@ -36,17 +36,18 @@ class DashboardScreen extends ConsumerWidget {
     final String today = DateTime.now().toIso8601String().substring(0, 10);
     final String todayMonthDay = today.substring(5); // MM-DD
 
-    // Idempotent housekeeping: purge notifications older than 15 days,
-    // and ensure today's birthday/low-stock notifications exist.
-    ref.watch(notificationsPurgeProvider);
-    ref.watch(autoNotificationsSyncProvider);
-
     final AsyncValue<List<Appointment>> apptsAsync =
         ref.watch(appointmentsForDateProvider(today));
     final AsyncValue<List<Customer>> customersAsync =
         ref.watch(customersProvider);
     final AsyncValue<List<InventoryItem>> inventoryAsync =
         ref.watch(inventoryProvider);
+
+    // Idempotent housekeeping: purge notifications older than 15 days,
+    // and ensure today's birthday/low-stock notifications exist.
+    ref.watch(notificationsPurgeProvider);
+    ref.watch(autoNotificationsSyncProvider);
+
     final String ownerName = ref.watch(settingsProvider).maybeWhen(
               data: (Map<String, String> m) => m['owner_name'],
               orElse: () => null,
