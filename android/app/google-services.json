@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "131529567037",
+    "project_id": "beauty-parlour-managemen-f6941",
+    "storage_bucket": "beauty-parlour-managemen-f6941.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:131529567037:android:f93a0b0fce744fa163f354",
+        "android_client_info": {
+          "package_name": "com.example.beauty_parlour_management"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBtR0rR56dkYsTul4vt-g4lzInjnThMB60"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
