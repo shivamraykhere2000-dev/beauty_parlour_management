@@ -8,7 +8,7 @@ part 'expenses_dao.g.dart';
 @DriftAccessor(tables: [Expenses])
 class ExpensesDao extends DatabaseAccessor<AppDatabase>
     with _$ExpensesDaoMixin {
-  ExpensesDao(AppDatabase db) : super(db);
+  ExpensesDao(super.db);
 
   // =========================================================================
   // Expenses

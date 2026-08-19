@@ -75,7 +75,7 @@ class WhatsAppScreen extends ConsumerWidget {
                                       AppTypography.label(AppColors.foreground)
                                           .copyWith(
                                               fontWeight: AppTypography.bold))),
-                          Icon(Icons.chevron_right,
+                          const Icon(Icons.chevron_right,
                               size: 18, color: AppColors.mutedForeground),
                         ],
                       ),

@@ -116,9 +116,7 @@ class _AddCustomerScreenState extends ConsumerState<AddCustomerScreen> {
     }
     setState(() => _saving = true);
     final CustomersDao db = ref.read(customersDaoProvider);
-    final String? birthdayIso = _birthday == null
-        ? null
-        : _birthday!.toIso8601String().substring(0, 10);
+    final String? birthdayIso = _birthday?.toIso8601String().substring(0, 10);
     try {
       if (widget.isEditing) {
         final Customer existing = widget.existingCustomer!;

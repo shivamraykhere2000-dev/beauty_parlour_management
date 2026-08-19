@@ -274,8 +274,8 @@ class _CustomerRow extends StatelessWidget {
               InkWell(
                 onTap: onEdit,
                 borderRadius: BorderRadius.circular(AppDimensions.radiusPill),
-                child: Padding(
-                  padding: const EdgeInsets.all(4),
+                child: const Padding(
+                  padding: EdgeInsets.all(4),
                   child: Icon(Icons.edit_outlined,
                       size: 16, color: AppColors.primary),
                 ),

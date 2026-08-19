@@ -34,7 +34,6 @@ class CustomerDetailScreen extends ConsumerStatefulWidget {
 
 class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen> {
   int _tab = 0;
-  static const List<String> _tabs = <String>['Overview', 'Visits', 'Notes'];
 
   @override
   Widget build(BuildContext context) {

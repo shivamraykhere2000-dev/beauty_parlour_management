@@ -219,7 +219,8 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
       try {
         data = jsonDecode(content) as Map<String, dynamic>;
       } catch (_) {
-        throw DriveBackupException(DriveBackupErrorType.corruptedBackup);
+        throw const DriveBackupException(
+            type: DriveBackupErrorType.corruptedBackup);
       }
       final AppDatabase db = ref.read(databaseProvider);
       await db.importFromJson(data);

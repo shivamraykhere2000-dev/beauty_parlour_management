@@ -2,10 +2,11 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("dev.flutter.flutter-gradle-plugin")
+    id("com.google.gms.google-services")
 }
 
 android {
-    namespace = "com.example.beauty_parlour_management"
+    namespace = "com.example.beauty_parlour_management_1"
 
     // IMPORTANT: explicitly use Android API 36
     compileSdk = 36
@@ -20,7 +21,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.beauty_parlour_management"
+        applicationId = "com.example.beauty_parlour_management_1"
 
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion

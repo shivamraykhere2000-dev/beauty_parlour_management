@@ -12,7 +12,20 @@
           "package_name": "com.example.beauty_parlour_management"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "131529567037-jal0uqm9vpjoq4fo5jio4v53kut7kavi.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.beauty_parlour_management",
+            "certificate_hash": "62b8332cc7bcd9582986f0b2a1ad1ed8088c3b81"
+          }
+        },
+        {
+          "client_id": "131529567037-d860nr83imtta7lvcchafdocdl99uojc.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBtR0rR56dkYsTul4vt-g4lzInjnThMB60"
@@ -20,7 +33,41 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "131529567037-d860nr83imtta7lvcchafdocdl99uojc.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:131529567037:android:fda031e33fdb301163f354",
+        "android_client_info": {
+          "package_name": "com.example.beauty_parlour_management_1"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "201522328304-846hcut8ibn68tenee5g5i62o4aidvhb.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBtR0rR56dkYsTul4vt-g4lzInjnThMB60"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "131529567037-d860nr83imtta7lvcchafdocdl99uojc.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
