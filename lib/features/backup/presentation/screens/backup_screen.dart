@@ -36,6 +36,7 @@ class BackupScreen extends ConsumerStatefulWidget {
 
 class _BackupScreenState extends ConsumerState<BackupScreen> {
   bool _busy = false;
+  bool _autoBackupEnabled = false;
   GoogleSignInAccount? _account;
   DateTime? _driveLastBackup;
 
@@ -46,6 +47,8 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
   @override
   void initState() {
     super.initState();
+    _autoBackupEnabled =
+        _prefs.getBool(AppConstants.prefKeyAutoBackupEnabled) ?? false;
     _restoreSession();
   }
 
@@ -128,6 +131,21 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
             message: 'Backup failed: $e', type: AppSnackBarType.error);
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Turns the "Auto Backup" preference on/off. Turning it on while
+  /// already signed in triggers one immediate backup, so the owner gets
+  /// instant confirmation it's working rather than waiting up to 24h (or
+  /// the next app open) to see it take effect. The actual once-per-24h
+  /// automatic checks happen via `autoBackupCheckProvider`, watched from
+  /// `RootShell` on every app open/resume — this screen only owns the
+  /// on/off switch and the "back up right now" convenience.
+  Future<void> _setAutoBackup(bool value) async {
+    setState(() => _autoBackupEnabled = value);
+    await _prefs.setBool(AppConstants.prefKeyAutoBackupEnabled, value);
+    if (value && _account != null) {
+      await _backupToDrive();
     }
   }
 
@@ -337,6 +355,33 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
                         ? 'Last Drive backup: $_driveLastBackupLabel'
                         : 'No Drive backup yet',
                     style: AppTypography.caption(AppColors.mutedForeground)),
+                SizedBox(height: AppSpacing.sm),
+                Container(
+                    height: 1, color: AppColors.primary.withValues(alpha: 0.1)),
+                SizedBox(height: AppSpacing.sm),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text('Auto Backup',
+                              style: AppTypography.label(AppColors.foreground)
+                                  .copyWith(fontWeight: AppTypography.bold)),
+                          Text(
+                              'Automatically backs up once every 24 hours when you open the app',
+                              style: AppTypography.caption(
+                                  AppColors.mutedForeground)),
+                        ],
+                      ),
+                    ),
+                    Switch(
+                      value: _autoBackupEnabled,
+                      onChanged: _busy ? null : (bool v) => _setAutoBackup(v),
+                      activeThumbColor: Colors.white,
+                    ),
+                  ],
+                ),
               ],
             ),
           ),

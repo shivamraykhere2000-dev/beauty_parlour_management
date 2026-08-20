@@ -54,4 +54,6 @@ abstract class AppConstants {
   // ---------------------------------------------------------------------
   static const String translationsPath = 'assets/translations';
   static const List<String> supportedLocales = <String>['en'];
+  static const String prefKeyAutoBackupEnabled = 'auto_backup_enabled';
+  static const String prefKeyLastAutoBackupDate = 'last_auto_backup_date';
 }

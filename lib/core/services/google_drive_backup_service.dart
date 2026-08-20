@@ -6,10 +6,15 @@ import 'package:http/http.dart' as http;
 
 /// Google Drive scope used by this application.
 ///
-/// `drive.file` is intentionally narrower than full Drive access.
-/// The backup is stored in the application's private appDataFolder.
+/// This MUST be `drive.appdata`, not `drive.file` — the backup is stored
+/// in Google Drive's special `appDataFolder` space (hidden from the
+/// user's regular Drive, accessible only to this app), and that space is
+/// only reachable with the `drive.appdata` scope. `drive.file` grants no
+/// access to `appDataFolder` at all, so any `files.list`/`files.create`
+/// call using `spaces: 'appDataFolder'` fails outright under that scope —
+/// which is what was causing uploads and downloads to fail here.
 const List<String> _googleDriveScopes = <String>[
-  'https://www.googleapis.com/auth/drive.file',
+  drive.DriveApi.driveAppdataScope,
 ];
 
 /// The OAuth Web Client ID created in Google Cloud Console.
@@ -157,6 +162,17 @@ class GoogleDriveBackupService {
   Future<GoogleSignInAccount?> signInSilently() async {
     await _initialize();
 
+    // Already have a valid session from earlier in this app run (either
+    // an interactive sign-in, or a previous successful silent restore).
+    // Skip re-attempting native silent auth entirely — there's nothing to
+    // gain by re-checking, and doing so risks a transient failure below
+    // wiping out a perfectly good, already-signed-in user for no reason.
+    // This is what was causing "leave the Backup screen and come back,
+    // asks to sign in again" even though nothing was actually signed out.
+    if (_currentUser != null) {
+      return _currentUser;
+    }
+
     try {
       // In google_sign_in 7.x, lightweight authentication is initiated
       // after initialization.
@@ -167,10 +183,13 @@ class GoogleDriveBackupService {
         _currentUser = await result;
       }
     } on GoogleSignInException catch (e) {
-      // Silent authentication failure should generally not break
-      // the BackupScreen. The user can still press "Sign in with Google".
-      _currentUser = null;
-
+      // A failed *silent* restore attempt does not mean the user is
+      // signed out — it just means we couldn't confirm it silently right
+      // now. Leave `_currentUser` untouched (it's already null here,
+      // since we only reach this branch when there was nothing cached)
+      // rather than actively clearing state. The user can still press
+      // "Sign in with Google" if this really was a genuine sign-out.
+      //
       // Do not throw for lightweight authentication.
       //
       // The actual interactive sign-in will show the proper error.
@@ -178,8 +197,6 @@ class GoogleDriveBackupService {
         'Google silent sign-in failed: $e',
       );
     } catch (e) {
-      _currentUser = null;
-
       print(
         'Google silent sign-in failed: $e',
       );
@@ -420,13 +437,13 @@ class GoogleDriveBackupService {
     } on drive.DetailedApiRequestError catch (e) {
       throw DriveBackupException(
         type: DriveBackupErrorType.downloadFailed,
-        message: 'Unable to find the backup in Google Drive.',
+        message: _driveApiErrorMessage(e),
         originalError: e,
       );
     } catch (e) {
       throw DriveBackupException(
         type: DriveBackupErrorType.downloadFailed,
-        message: 'Unable to find the backup in Google Drive.',
+        message: 'Unable to find the backup in Google Drive: $e',
         originalError: e,
       );
     }

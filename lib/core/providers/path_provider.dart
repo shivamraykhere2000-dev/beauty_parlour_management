@@ -1,9 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import '../config/app_constants.dart';
 import '../database/app_database.dart';
 import '../database/daos/appnotifications_dao.dart';
 import '../database/daos/customers_dao.dart';
 import '../database/daos/inventoryitems_dao.dart';
+import '../di/dependency_injection.dart';
 import '../services/google_drive_backup_service.dart';
 
 /// The single [AppDatabase] instance, resolved from GetIt.
@@ -175,5 +179,36 @@ final FutureProvider<void> autoNotificationsSyncProvider =
             body: 'Only ${i.stock} ${i.unit} left (minimum ${i.minStock}).');
       }
     }
+  }
+});
+
+final FutureProvider<void> autoBackupCheckProvider =
+    FutureProvider<void>((ref) async {
+  try {
+    final SharedPreferences prefs = getIt<SharedPreferences>();
+    final bool enabled =
+        prefs.getBool(AppConstants.prefKeyAutoBackupEnabled) ?? false;
+    if (!enabled) return;
+
+    final GoogleDriveBackupService drive =
+        ref.watch(googleDriveBackupServiceProvider);
+    final GoogleSignInAccount? account = await drive.signInSilently();
+    if (account == null) return; // Never prompt automatically — silent only.
+
+    final String? lastIso = prefs.getString(AppConstants.prefKeyLastBackupDate);
+    final DateTime? last = lastIso == null ? null : DateTime.tryParse(lastIso);
+    final bool dueForBackup = last == null ||
+        DateTime.now().difference(last) >= const Duration(hours: 24);
+    if (!dueForBackup) return;
+
+    final AppDatabase db = ref.watch(databaseProvider);
+    final Map<String, dynamic> data = await db.exportToJson();
+    await drive.uploadBackup(data);
+    await prefs.setString(
+        AppConstants.prefKeyLastBackupDate, DateTime.now().toIso8601String());
+  } catch (_) {
+    // Silent by design — see doc comment above. A failed auto-backup
+    // attempt simply gets retried on the next check (next app open/resume,
+    // or after 24h), so nothing is lost by staying quiet here.
   }
 });

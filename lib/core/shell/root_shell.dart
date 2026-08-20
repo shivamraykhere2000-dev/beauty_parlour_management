@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/appointments/presentation/screens/appointments_screen.dart';
@@ -9,6 +10,7 @@ import '../../features/settings/presentation/screens/settings_screen.dart';
 import '../../shared/widgets/widgets.dart';
 import '../config/route_constants.dart';
 import '../database/app_database.dart';
+import '../providers/path_provider.dart';
 
 /// Hosts the 5 main tabs (Home, Appointments, Clients, Reports, Settings)
 /// behind a single persistent [AppBottomNav] + quick-action FAB, matching
@@ -16,15 +18,39 @@ import '../database/app_database.dart';
 /// Book Appointment, Billing, Services, ...) is pushed on top as a full
 /// route via `go_router` and intentionally does *not* show the bottom nav,
 /// same as the reference design.
-class RootShell extends StatefulWidget {
+class RootShell extends ConsumerStatefulWidget {
   const RootShell({super.key});
 
   @override
-  State<RootShell> createState() => _RootShellState();
+  ConsumerState<RootShell> createState() => _RootShellState();
 }
 
-class _RootShellState extends State<RootShell> {
+class _RootShellState extends ConsumerState<RootShell>
+    with WidgetsBindingObserver {
   int _tabIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Re-check auto-backup every time the app comes back to the
+    // foreground, not just on cold start — covers the app being left
+    // open in the background across the 24h boundary without a full
+    // process restart.
+    if (state == AppLifecycleState.resumed) {
+      ref.invalidate(autoBackupCheckProvider);
+    }
+  }
 
   void _handleQuickAction(String label) {
     switch (label) {
@@ -75,6 +101,11 @@ class _RootShellState extends State<RootShell> {
 
   @override
   Widget build(BuildContext context) {
+    // Watching (not just invalidating on resume) is what actually makes
+    // this run — a FutureProvider with no active watcher never executes,
+    // cold start or otherwise.
+    ref.watch(autoBackupCheckProvider);
+
     final List<Widget> tabs = <Widget>[
       DashboardScreen(onQuickAction: _handleQuickAction),
       AppointmentsScreen(
