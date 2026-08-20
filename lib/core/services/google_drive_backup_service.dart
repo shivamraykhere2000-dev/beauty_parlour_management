@@ -1,36 +1,12 @@
 import 'dart:convert';
 
+import 'package:extension_google_sign_in_as_googleapis_auth/extension_google_sign_in_as_googleapis_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:http/http.dart' as http;
 
-/// Google Drive scope used by this application.
-///
-/// This MUST be `drive.appdata`, not `drive.file` — the backup is stored
-/// in Google Drive's special `appDataFolder` space (hidden from the
-/// user's regular Drive, accessible only to this app), and that space is
-/// only reachable with the `drive.appdata` scope. `drive.file` grants no
-/// access to `appDataFolder` at all, so any `files.list`/`files.create`
-/// call using `spaces: 'appDataFolder'` fails outright under that scope —
-/// which is what was causing uploads and downloads to fail here.
-const List<String> _googleDriveScopes = <String>[
-  drive.DriveApi.driveAppdataScope,
-];
-
-/// The OAuth Web Client ID created in Google Cloud Console.
-///
-/// IMPORTANT:
-/// This must be your WEB OAuth client ID, not the Android client ID.
-///
-/// Example:
-/// 1234567890-xxxxxxxxxxxxxxxx.apps.googleusercontent.com
-const String _serverClientId =
-    '201522328304-846hcut8ibn68tenee5g5i62o4aidvhb.apps.googleusercontent.com';
-
-/// The name of the backup file stored in Google Drive.
-const String _backupFileName = 'beauty_parlour_backup.json';
-
-/// Exception categories used by the BackupScreen.
+/// Typed failure reasons so the UI can show a specific, friendly message
+/// instead of a raw exception string.
 enum DriveBackupErrorType {
   notSignedIn,
   authenticationFailed,
@@ -41,10 +17,10 @@ enum DriveBackupErrorType {
   invalidBackup,
   corruptedBackup,
   networkError,
+  configurationError,
   unknown,
 }
 
-/// Application-specific exception for Google Drive backup operations.
 class DriveBackupException implements Exception {
   const DriveBackupException({
     required this.type,
@@ -78,696 +54,214 @@ class DriveBackupException implements Exception {
         return 'This backup could not be read — it may be corrupted.';
       case DriveBackupErrorType.networkError:
         return 'No internet connection. Please check your connection and try again.';
+      case DriveBackupErrorType.configurationError:
+        return 'Google Sign-In isn\'t set up for this app yet (missing SHA-1 fingerprint / OAuth client in Google Cloud Console). This needs a one-time developer setup step — see the app\'s setup docs.';
       case DriveBackupErrorType.unknown:
         return 'Something went wrong. Please try again.';
     }
   }
 
   @override
-  String toString() {
-    return 'DriveBackupException('
-        'type: $type, '
-        'message: $message'
-        ')';
-  }
+  String toString() => 'DriveBackupException(type: $type, message: $message)';
 }
 
-/// Handles:
+/// Backs up the app's exported JSON (see `AppDatabase.exportToJson` /
+/// `importFromJson`) to the signed-in owner's Google Drive, in the app's
+/// private `appDataFolder` space (invisible in the user's regular Drive —
+/// no folder for them to accidentally delete). One file is kept and
+/// overwritten on every backup, so "restore" always means "restore the
+/// latest backup", matching the phone-change flow: new phone → sign in
+/// with the same Gmail → restore.
 ///
-/// - Google Sign-In
-/// - Google Drive authorization
-/// - Uploading backup JSON
-/// - Updating the existing backup
-/// - Downloading the latest backup
-/// - Reading last backup time
-/// - Signing out
+/// Deliberately built on `google_sign_in` v6.x rather than v7. v7's
+/// silent-session restore (`attemptLightweightAuthentication`, backed by
+/// Android's Credential Manager) has an open, unresolved upstream bug
+/// where the session is not reliably restored after a full app restart on
+/// Android — see flutter/flutter#171745, #174736, #174681. v6's
+/// `GoogleSignInClient.silentSignIn()` uses the older, battle-tested
+/// native Google Sign-In SDK and does not have this problem, which is
+/// what this app's "stay signed in until you explicitly sign out"
+/// requirement depends on.
 ///
-/// IMPORTANT:
-/// The public methods in this class are intentionally kept compatible
-/// with the existing BackupScreen.
-///
-/// BackupScreen should NOT need to be changed.
+/// **Setup required outside this code**: Google Sign-In needs an OAuth
+/// client configured in Google Cloud Console for this app (Android SHA-1
+/// fingerprint + `google-services.json`, iOS URL scheme in `Info.plist`).
+/// Without that one-time platform setup, sign-in will fail with
+/// [DriveBackupErrorType.configurationError] regardless of how correct
+/// this code is — that configuration can't be done from source code alone.
 class GoogleDriveBackupService {
-  GoogleDriveBackupService();
+  GoogleDriveBackupService()
+      : _googleSignIn = GoogleSignIn(
+          scopes: <String>[drive.DriveApi.driveAppdataScope, 'email'],
+        );
 
-  // ---------------------------------------------------------------------------
-  // GOOGLE SIGN-IN
-  // ---------------------------------------------------------------------------
+  final GoogleSignIn _googleSignIn;
+  static const String _backupFileName = 'blossom_backup.json';
 
-  final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
+  GoogleSignInAccount? get currentUser => _googleSignIn.currentUser;
 
-  GoogleSignInAccount? _currentUser;
-
-  bool _initialized = false;
-
-  /// Initializes Google Sign-In.
-  ///
-  /// Must be called before signIn(), signInSilently(), etc.
-  Future<void> _initialize() async {
-    if (_initialized) {
-      return;
-    }
-
-    try {
-      await _googleSignIn.initialize(
-        serverClientId: _serverClientId,
-      );
-
-      _initialized = true;
-    } on GoogleSignInException catch (e) {
-      throw DriveBackupException(
-        type: DriveBackupErrorType.authenticationFailed,
-        message: 'Google Sign-In could not be initialized.',
-        originalError: e,
-      );
-    } catch (e) {
-      throw DriveBackupException(
-        type: DriveBackupErrorType.authenticationFailed,
-        message: 'Google Sign-In initialization failed.',
-        originalError: e,
-      );
-    }
-  }
-
-  /// Returns the currently signed-in account, if available.
-  ///
-  /// We keep this private because google_sign_in 7.x no longer exposes
-  /// GoogleSignIn.currentUser in the old way.
-  GoogleSignInAccount? get currentUser => _currentUser;
-
-  /// Initializes Google Sign-In and tries to restore the previous
-  /// lightweight authentication state.
-  ///
-  /// This method is called by your BackupScreen from initState().
+  /// Restores a previous session without any UI. Safe to call on every
+  /// app start / screen load — v6's `silentSignIn()` reliably restores a
+  /// session that was granted in an earlier app run, unlike v7's
+  /// lightweight authentication.
   Future<GoogleSignInAccount?> signInSilently() async {
-    await _initialize();
-
-    // Already have a valid session from earlier in this app run (either
-    // an interactive sign-in, or a previous successful silent restore).
-    // Skip re-attempting native silent auth entirely — there's nothing to
-    // gain by re-checking, and doing so risks a transient failure below
-    // wiping out a perfectly good, already-signed-in user for no reason.
-    // This is what was causing "leave the Backup screen and come back,
-    // asks to sign in again" even though nothing was actually signed out.
-    if (_currentUser != null) {
-      return _currentUser;
-    }
-
     try {
-      // In google_sign_in 7.x, lightweight authentication is initiated
-      // after initialization.
-      final Future<GoogleSignInAccount?>? result =
-          _googleSignIn.attemptLightweightAuthentication();
-
-      if (result != null) {
-        _currentUser = await result;
-      }
-    } on GoogleSignInException catch (e) {
-      // A failed *silent* restore attempt does not mean the user is
-      // signed out — it just means we couldn't confirm it silently right
-      // now. Leave `_currentUser` untouched (it's already null here,
-      // since we only reach this branch when there was nothing cached)
-      // rather than actively clearing state. The user can still press
-      // "Sign in with Google" if this really was a genuine sign-out.
-      //
-      // Do not throw for lightweight authentication.
-      //
-      // The actual interactive sign-in will show the proper error.
-      print(
-        'Google silent sign-in failed: $e',
-      );
-    } catch (e) {
-      print(
-        'Google silent sign-in failed: $e',
-      );
+      return await _googleSignIn.signInSilently();
+    } catch (_) {
+      return null;
     }
-
-    return _currentUser;
   }
 
-  /// Interactive Google Sign-In.
-  ///
-  /// This method matches:
-  ///
-  /// final GoogleSignInAccount account =
-  ///     await _drive.signIn();
   Future<GoogleSignInAccount> signIn() async {
-    await _initialize();
-
     try {
-      // If we already have an authenticated account, use it.
-      if (_currentUser != null) {
-        return _currentUser!;
-      }
-
-      if (!_googleSignIn.supportsAuthenticate()) {
+      final GoogleSignInAccount? account = await _googleSignIn.signIn();
+      if (account == null) {
+        // User cancelled the picker — not a real error, but nothing to do.
         throw const DriveBackupException(
           type: DriveBackupErrorType.authenticationFailed,
-          message: 'Google Sign-In authentication is not supported '
-              'on this platform.',
+          message: 'Sign-in was cancelled.',
         );
       }
-
-      final GoogleSignInAccount account = await _googleSignIn.authenticate();
-
-      _currentUser = account;
-
       return account;
     } on DriveBackupException {
       rethrow;
-    } on GoogleSignInException catch (e) {
-      throw DriveBackupException(
-        type: DriveBackupErrorType.authenticationFailed,
-        message: _googleSignInErrorMessage(e),
-        originalError: e,
-      );
     } catch (e) {
-      throw DriveBackupException(
-        type: DriveBackupErrorType.authenticationFailed,
-        message: 'Google Sign-In failed.',
-        originalError: e,
-      );
+      throw _mapError(e);
     }
   }
 
-  /// Signs out from Google.
-  ///
-  /// This matches your BackupScreen:
-  ///
-  /// await _drive.signOut();
   Future<void> signOut() async {
-    await _initialize();
-
-    try {
-      await _googleSignIn.signOut();
-
-      _currentUser = null;
-    } on GoogleSignInException catch (e) {
-      throw DriveBackupException(
-        type: DriveBackupErrorType.authenticationFailed,
-        message: 'Unable to sign out from Google.',
-        originalError: e,
-      );
-    } catch (e) {
-      throw DriveBackupException(
-        type: DriveBackupErrorType.authenticationFailed,
-        message: 'Unable to sign out from Google.',
-        originalError: e,
-      );
-    }
+    await _googleSignIn.signOut();
   }
 
-  // ---------------------------------------------------------------------------
-  // GOOGLE DRIVE AUTHORIZATION
-  // ---------------------------------------------------------------------------
+  Future<drive.DriveApi> _driveApi() async {
+    GoogleSignInAccount? account = _googleSignIn.currentUser;
+    account ??= await signInSilently();
+    account ??= await signIn();
 
-  /// Makes sure the user is signed in and has permission to access
-  /// Google Drive for this application.
-  Future<void> _ensureDriveAuthorization({
-    bool promptIfNecessary = true,
-  }) async {
-    await _initialize();
-
-    GoogleSignInAccount? user = _currentUser;
-
-    if (user == null) {
-      try {
-        user = await _googleSignIn.attemptLightweightAuthentication();
-      } catch (_) {
-        user = null;
-      }
+    final http.Client? client = await _googleSignIn.authenticatedClient();
+    if (client == null) {
+      throw const DriveBackupException(type: DriveBackupErrorType.notSignedIn);
     }
-
-    if (user == null) {
-      throw const DriveBackupException(
-        type: DriveBackupErrorType.notSignedIn,
-        message: 'Please sign in with Google first.',
-      );
-    }
-
-    _currentUser = user;
-
-    try {
-      final GoogleSignInClientAuthorization? existingAuthorization =
-          await user.authorizationClient.authorizationForScopes(
-        _googleDriveScopes,
-      );
-
-      if (existingAuthorization != null &&
-          existingAuthorization.accessToken.isNotEmpty) {
-        return;
-      }
-
-      if (!promptIfNecessary) {
-        throw const DriveBackupException(
-          type: DriveBackupErrorType.authorizationFailed,
-          message: 'Google Drive permission has not been granted.',
-        );
-      }
-
-      await user.authorizationClient.authorizeScopes(
-        _googleDriveScopes,
-      );
-    } on DriveBackupException {
-      rethrow;
-    } on GoogleSignInException catch (e) {
-      throw DriveBackupException(
-        type: DriveBackupErrorType.authorizationFailed,
-        message: 'Google Drive permission was not granted.',
-        originalError: e,
-      );
-    } catch (e) {
-      throw DriveBackupException(
-        type: DriveBackupErrorType.authorizationFailed,
-        message: 'Unable to authorize Google Drive.',
-        originalError: e,
-      );
-    }
+    return drive.DriveApi(client);
   }
 
-  /// Returns authorization headers for Google Drive REST/API requests.
-  Future<Map<String, String>> _getAuthorizationHeaders() async {
-    await _ensureDriveAuthorization();
-
-    final user = _currentUser;
-
-    if (user == null) {
-      throw const DriveBackupException(
-        type: DriveBackupErrorType.notSignedIn,
-        message: 'Please sign in with Google first.',
-      );
-    }
-
+  /// Uploads [jsonData] as the single backup file, creating it on first
+  /// run or overwriting the existing one on every subsequent backup.
+  Future<void> uploadBackup(Map<String, dynamic> jsonData) async {
     try {
-      final Map<String, String>? headers =
-          await user.authorizationClient.authorizationHeaders(
-        _googleDriveScopes,
-        promptIfNecessary: true,
-      );
-
-      if (headers == null || headers.isEmpty) {
-        throw const DriveBackupException(
-          type: DriveBackupErrorType.authorizationFailed,
-          message: 'Could not obtain Google Drive authorization.',
-        );
-      }
-
-      return headers;
-    } on DriveBackupException {
-      rethrow;
-    } on GoogleSignInException catch (e) {
-      throw DriveBackupException(
-        type: DriveBackupErrorType.authorizationFailed,
-        message: 'Could not obtain Google Drive authorization.',
-        originalError: e,
-      );
-    } catch (e) {
-      throw DriveBackupException(
-        type: DriveBackupErrorType.authorizationFailed,
-        message: 'Could not obtain Google Drive authorization.',
-        originalError: e,
-      );
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // DRIVE CLIENT
-  // ---------------------------------------------------------------------------
-
-  /// Creates a Google Drive API client using the current Google access token.
-  ///
-  /// We intentionally create the client from authorization headers instead
-  /// of using the old google_sign_in authenticatedClient() API.
-  ///
-  /// Returns both the [drive.DriveApi] and the underlying [http.Client] —
-  /// `DriveApi` does not expose the client it was built with, so callers
-  /// must hold onto this reference themselves in order to close it.
-  Future<({drive.DriveApi api, http.Client client})> _getDriveApi() async {
-    final Map<String, String> headers = await _getAuthorizationHeaders();
-
-    final http.Client httpClient = _AuthorizedHttpClient(headers);
-
-    return (api: drive.DriveApi(httpClient), client: httpClient);
-  }
-
-  // ---------------------------------------------------------------------------
-  // FIND BACKUP
-  // ---------------------------------------------------------------------------
-
-  /// Finds the existing backup file in Google's private appDataFolder.
-  Future<drive.File?> _findBackupFile(
-    drive.DriveApi driveApi,
-  ) async {
-    try {
-      final drive.FileList result = await driveApi.files.list(
-        spaces: 'appDataFolder',
-        q: "name = '$_backupFileName' "
-            "and trashed = false",
-        $fields: 'files(id,name,size,createdTime,modifiedTime)',
-        pageSize: 10,
-      );
-
-      final List<drive.File>? files = result.files;
-
-      if (files == null || files.isEmpty) {
-        return null;
-      }
-
-      return files.first;
-    } on drive.DetailedApiRequestError catch (e) {
-      throw DriveBackupException(
-        type: DriveBackupErrorType.downloadFailed,
-        message: _driveApiErrorMessage(e),
-        originalError: e,
-      );
-    } catch (e) {
-      throw DriveBackupException(
-        type: DriveBackupErrorType.downloadFailed,
-        message: 'Unable to find the backup in Google Drive: $e',
-        originalError: e,
-      );
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // UPLOAD
-  // ---------------------------------------------------------------------------
-
-  /// Uploads a backup to Google Drive.
-  ///
-  /// If a backup already exists:
-  ///
-  ///     existing file → update
-  ///
-  /// Otherwise:
-  ///
-  ///     no file → create
-  ///
-  /// This matches the behavior expected by your BackupScreen.
-  Future<void> uploadBackup(
-    Map<String, dynamic> data,
-  ) async {
-    drive.DriveApi? driveApi;
-    http.Client? httpClient;
-
-    try {
-      final ({drive.DriveApi api, http.Client client}) result =
-          await _getDriveApi();
-      driveApi = result.api;
-      httpClient = result.client;
-
-      final String jsonData = jsonEncode(data);
-
-      final List<int> bytes = utf8.encode(jsonData);
-
-      final drive.File? existingFile = await _findBackupFile(driveApi);
-
+      final drive.DriveApi api = await _driveApi();
+      final List<int> bytes = utf8.encode(jsonEncode(jsonData));
       final drive.Media media = drive.Media(
-        Stream<List<int>>.value(bytes),
-        bytes.length,
-        contentType: 'application/json',
-      );
+          Stream<List<int>>.value(bytes), bytes.length,
+          contentType: 'application/json');
 
-      if (existingFile != null && existingFile.id != null) {
-        // ---------------------------------------------------------------
-        // UPDATE EXISTING BACKUP
-        // ---------------------------------------------------------------
-
-        await driveApi.files.update(
-          drive.File(
-            name: _backupFileName,
-            mimeType: 'application/json',
-          ),
-          existingFile.id!,
-          uploadMedia: media,
-        );
+      final String? existingId = await _findBackupFileId(api);
+      if (existingId != null) {
+        await api.files.update(drive.File(), existingId, uploadMedia: media);
       } else {
-        // ---------------------------------------------------------------
-        // CREATE NEW BACKUP
-        // ---------------------------------------------------------------
-
         final drive.File metadata = drive.File()
           ..name = _backupFileName
           ..mimeType = 'application/json'
-          ..parents = <String>[
-            'appDataFolder',
-          ];
-
-        await driveApi.files.create(
-          metadata,
-          uploadMedia: media,
-        );
+          ..parents = <String>['appDataFolder'];
+        await api.files.create(metadata, uploadMedia: media);
       }
     } on DriveBackupException {
       rethrow;
-    } on drive.DetailedApiRequestError catch (e) {
-      throw DriveBackupException(
-        type: DriveBackupErrorType.uploadFailed,
-        message: _driveApiErrorMessage(e),
-        originalError: e,
-      );
     } catch (e) {
-      throw DriveBackupException(
-        type: DriveBackupErrorType.uploadFailed,
-        message: 'Backup upload failed.',
-        originalError: e,
-      );
-    } finally {
-      httpClient?.close();
+      throw _mapError(e, fallback: DriveBackupErrorType.uploadFailed);
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // DOWNLOAD
-  // ---------------------------------------------------------------------------
-
-  /// Downloads the latest backup from Google Drive.
-  ///
-  /// Returns the JSON backup as:
-  ///
-  ///     Map<String, dynamic>
-  ///
-  /// This exactly matches your BackupScreen.
+  /// Downloads and decodes the latest backup, or throws
+  /// [DriveBackupErrorType.noBackupFound] if this account has never backed
+  /// up, or [DriveBackupErrorType.corruptedBackup] if the file can't be
+  /// parsed as JSON.
   Future<Map<String, dynamic>> downloadLatestBackup() async {
-    drive.DriveApi? driveApi;
-    http.Client? httpClient;
-
     try {
-      final ({drive.DriveApi api, http.Client client}) result =
-          await _getDriveApi();
-      driveApi = result.api;
-      httpClient = result.client;
-
-      final drive.File? backupFile = await _findBackupFile(driveApi);
-
-      if (backupFile == null || backupFile.id == null) {
+      final drive.DriveApi api = await _driveApi();
+      final String? fileId = await _findBackupFileId(api);
+      if (fileId == null) {
         throw const DriveBackupException(
-          type: DriveBackupErrorType.noBackupFound,
-          message: 'No backup was found in Google Drive.',
-        );
+            type: DriveBackupErrorType.noBackupFound);
       }
 
-      final drive.Media media = await driveApi.files.get(
-        backupFile.id!,
+      final drive.Media media = await api.files.get(
+        fileId,
         downloadOptions: drive.DownloadOptions.fullMedia,
       ) as drive.Media;
 
-      final List<int> bytes = await _readMedia(media);
-
-      if (bytes.isEmpty) {
-        throw const DriveBackupException(
-          type: DriveBackupErrorType.invalidBackup,
-          message: 'The Google Drive backup is empty.',
-        );
+      final List<int> bytes = <int>[];
+      await for (final List<int> chunk in media.stream) {
+        bytes.addAll(chunk);
       }
 
-      final String jsonString = utf8.decode(bytes);
-
-      final dynamic decoded = jsonDecode(jsonString);
-
-      if (decoded is! Map<String, dynamic>) {
+      try {
+        return jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
+      } catch (_) {
         throw const DriveBackupException(
-          type: DriveBackupErrorType.invalidBackup,
-          message: 'The Google Drive backup has an invalid format.',
-        );
+            type: DriveBackupErrorType.corruptedBackup);
       }
-
-      return decoded;
     } on DriveBackupException {
       rethrow;
-    } on FormatException catch (e) {
-      throw DriveBackupException(
-        type: DriveBackupErrorType.invalidBackup,
-        message: 'The Google Drive backup is not valid JSON.',
-        originalError: e,
-      );
-    } on drive.DetailedApiRequestError catch (e) {
-      throw DriveBackupException(
-        type: DriveBackupErrorType.downloadFailed,
-        message: _driveApiErrorMessage(e),
-        originalError: e,
-      );
     } catch (e) {
-      throw DriveBackupException(
-        type: DriveBackupErrorType.downloadFailed,
-        message: 'Unable to download the latest backup.',
-        originalError: e,
-      );
-    } finally {
-      httpClient?.close();
+      throw _mapError(e, fallback: DriveBackupErrorType.downloadFailed);
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // LAST BACKUP TIME
-  // ---------------------------------------------------------------------------
-
-  /// Returns the last modified time of the backup.
-  ///
-  /// Your BackupScreen uses this to display:
-  ///
-  ///     Last backup
-  ///     X minutes ago
-  ///
   Future<DateTime?> getLastBackupTime() async {
-    drive.DriveApi? driveApi;
-    http.Client? httpClient;
-
     try {
-      final ({drive.DriveApi api, http.Client client}) result =
-          await _getDriveApi();
-      driveApi = result.api;
-      httpClient = result.client;
-
-      final drive.File? backupFile = await _findBackupFile(driveApi);
-
-      if (backupFile == null) {
-        return null;
-      }
-
-      return backupFile.modifiedTime;
-    } on DriveBackupException {
-      rethrow;
-    } on drive.DetailedApiRequestError catch (e) {
-      throw DriveBackupException(
-        type: DriveBackupErrorType.downloadFailed,
-        message: 'Unable to read the last backup time.',
-        originalError: e,
+      final drive.DriveApi api = await _driveApi();
+      final drive.FileList result = await api.files.list(
+        spaces: 'appDataFolder',
+        q: "name = '$_backupFileName'",
+        $fields: 'files(id, modifiedTime)',
       );
+      if (result.files == null || result.files!.isEmpty) return null;
+      return result.files!.first.modifiedTime;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<String?> _findBackupFileId(drive.DriveApi api) async {
+    try {
+      final drive.FileList result = await api.files.list(
+        spaces: 'appDataFolder',
+        q: "name = '$_backupFileName'",
+        $fields: 'files(id, name)',
+      );
+      if (result.files == null || result.files!.isEmpty) return null;
+      return result.files!.first.id;
     } catch (e) {
-      throw DriveBackupException(
-        type: DriveBackupErrorType.downloadFailed,
-        message: 'Unable to read the last backup time.',
-        originalError: e,
-      );
-    } finally {
-      httpClient?.close();
+      throw _mapError(e, fallback: DriveBackupErrorType.downloadFailed);
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // HELPERS
-  // ---------------------------------------------------------------------------
-
-  Future<List<int>> _readMedia(
-    drive.Media media,
-  ) async {
-    final List<int> result = <int>[];
-
-    await for (final List<int> chunk in media.stream) {
-      result.addAll(chunk);
+  DriveBackupException _mapError(Object e,
+      {DriveBackupErrorType fallback = DriveBackupErrorType.unknown}) {
+    final String message = e.toString().toLowerCase();
+    if (message.contains('socketexception') ||
+        message.contains('network') ||
+        message.contains('failed host lookup')) {
+      return const DriveBackupException(
+          type: DriveBackupErrorType.networkError);
     }
-
-    return result;
-  }
-
-  String _googleSignInErrorMessage(
-    GoogleSignInException error,
-  ) {
-    switch (error.code) {
-      case GoogleSignInExceptionCode.canceled:
-        return 'Google Sign-In was cancelled.';
-
-      case GoogleSignInExceptionCode.interrupted:
-        return 'Google Sign-In was interrupted.';
-
-      case GoogleSignInExceptionCode.clientConfigurationError:
-        return 'Google Sign-In is not configured correctly. '
-            'Please check the Android package name, SHA-1, '
-            'OAuth client IDs and Google Cloud configuration.';
-
-      case GoogleSignInExceptionCode.providerConfigurationError:
-        return 'Google Sign-In provider configuration is incorrect.';
-
-      case GoogleSignInExceptionCode.uiUnavailable:
-        return 'Google Sign-In UI is currently unavailable.';
-
-      case GoogleSignInExceptionCode.userMismatch:
-        return 'The selected Google account could not be used.';
-
-      case GoogleSignInExceptionCode.unknownError:
-        return 'Google Sign-In failed. '
-            'Please check your Google Cloud Console configuration.';
+    // ApiException: 10 = DEVELOPER_ERROR — the app's SHA-1 fingerprint /
+    // package name isn't registered against an OAuth client in Google
+    // Cloud Console. This is a one-time app-setup issue, not something a
+    // retry or a code change fixes.
+    if (message.contains('apiexception: 10') ||
+        message.contains('developer_error') ||
+        message.contains('sign_in_failed')) {
+      return const DriveBackupException(
+          type: DriveBackupErrorType.configurationError);
     }
-  }
-
-  String _driveApiErrorMessage(
-    drive.DetailedApiRequestError error,
-  ) {
-    final int? status = error.status;
-
-    if (status == 401) {
-      return 'Google Drive authorization expired. '
-          'Please sign in again.';
+    if (message.contains('apiexception: 12500')) {
+      return const DriveBackupException(
+          type: DriveBackupErrorType.configurationError);
     }
-
-    if (status == 403) {
-      return 'Google Drive permission was denied. '
-          'Please allow Drive access for this app.';
-    }
-
-    if (status == 404) {
-      return 'The Google Drive backup could not be found.';
-    }
-
-    return 'Google Drive request failed'
-        '${status != null ? ' ($status)' : ''}.';
-  }
-}
-
-/// HTTP client that adds the authorization headers returned by
-/// google_sign_in 7.x.
-///
-/// This is used only for Google API requests.
-///
-/// It avoids using the old:
-///
-///     authenticatedClient()
-///
-/// API from older google_sign_in implementations.
-class _AuthorizedHttpClient extends http.BaseClient {
-  _AuthorizedHttpClient(
-    Map<String, String> headers,
-  ) : _headers = Map<String, String>.from(
-          headers,
-        );
-
-  final Map<String, String> _headers;
-
-  final http.Client _inner = http.Client();
-
-  @override
-  Future<http.StreamedResponse> send(
-    http.BaseRequest request,
-  ) {
-    request.headers.addAll(_headers);
-
-    return _inner.send(request);
-  }
-
-  @override
-  void close() {
-    _inner.close();
-    super.close();
+    return DriveBackupException(
+        type: fallback, message: e.toString(), originalError: e);
   }
 }
