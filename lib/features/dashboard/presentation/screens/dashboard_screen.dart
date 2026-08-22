@@ -49,7 +49,7 @@ class DashboardScreen extends ConsumerWidget {
     ref.watch(autoNotificationsSyncProvider);
 
     final String ownerName = ref.watch(settingsProvider).maybeWhen(
-              data: (Map<String, String> m) => m['owner_name'],
+              data: (Map<String, String> m) => m['first_name'],
               orElse: () => null,
             ) ??
         'there';

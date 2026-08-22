@@ -1,133 +1,178 @@
-name: beauty_parlour_management
-description: "Offline-first Beauty Parlour Management System for a single salon owner."
-publish_to: "none"
-version: 1.0.0+1
+  name: beauty_parlour_management
+  description: "Offline-first Beauty Parlour Management System for a single salon owner."
+  publish_to: "none"
+  version: 1.0.0+1
 
-environment:
-  sdk: ">=3.4.0 <4.0.0"
+  environment:
+    sdk: ">=3.4.0 <4.0.0"
 
-dependencies:
+  dependencies:
+    flutter:
+      sdk: flutter
+
+    # State Management
+    flutter_riverpod: ^2.5.1
+    riverpod_annotation: ^2.3.5
+    riverpod: ^2.6.1
+
+    # Dependency Injection
+    get_it: ^8.0.3
+
+    # Database (Local / Offline)
+    drift: ^2.28.0
+    sqlite3_flutter_libs: ^0.5.32
+    path_provider: ^2.1.5
+    path: ^1.9.1
+
+    # Archive / Encryption
+    archive: ^4.0.7
+    cryptography: ^2.7.0
+    flutter_secure_storage: ^9.2.4
+
+    # Routing
+    go_router: ^14.2.0
+
+    # Local Notifications
+    flutter_local_notifications: ^17.2.1+2
+    timezone: ^0.9.4
+
+    # PDF Generation & Printing
+    pdf: ^3.11.0
+    printing: ^5.13.1
+
+    # Charts
+    fl_chart: ^0.68.0
+
+    # WhatsApp / External Links
+    url_launcher: ^6.3.0
+
+    # Google Drive Backup
+    googleapis: ^13.2.0
+    google_sign_in: ^6.3.0
+    extension_google_sign_in_as_googleapis_auth: ^2.0.12
+    http: ^1.5.0
+
+    # File Sharing
+    share_plus: ^12.0.0
+
+    # Responsive UI
+    flutter_screenutil: ^5.9.3
+
+    # Localization
+    easy_localization: ^3.0.7
+
+    # Image & File Handling
+    image_picker: ^1.1.2
+    file_picker: ^10.3.10
+
+    # Permissions
+    permission_handler: ^11.3.1
+
+    # Logging
+    logger: ^2.4.0
+
+    # Utilities
+    equatable: ^2.0.5
+    intl: ^0.20.2
+    uuid: ^4.4.2
+    collection: ^1.18.0
+    cached_network_image: ^3.4.0
+    flutter_svg: ^2.0.10+1
+    shared_preferences: ^2.2.3
+    crypto: ^3.0.5
+    local_auth: ^2.3.0
+
+    # Icons
+    cupertino_icons: ^1.0.8
+
+
+  dev_dependencies:
+    flutter_test:
+      sdk: flutter
+
+    flutter_lints: ^4.0.0
+
+    # Code Generation
+    build_runner: ^2.4.11
+    drift_dev: ^2.19.1
+    riverpod_generator: ^2.4.0
+    json_serializable: ^6.8.0
+
+    # App Launcher Icon
+    flutter_launcher_icons: ^0.14.4
+
+    # Native Splash Screen
+    flutter_native_splash: ^2.4.6
+
+
+  # ==========================================================
+  # APP ICON CONFIGURATION
+  # ==========================================================
+
+  flutter_launcher_icons:
+    android: true
+    ios: true
+
+    # Your app logo
+    image_path: "assets/images/app_logo.png"
+
+
+  # ==========================================================
+  # NATIVE SPLASH SCREEN CONFIGURATION
+  # ==========================================================
+
+  flutter_native_splash:
+    color: "#FFFFFF"
+    image: "assets/images/app_logo.png"
+
+    android: true
+    ios: true
+
+    # Android 12+
+    android_12:
+      color: "#FFFFFF"
+      image: "assets/images/app_logo.png"
+
+
+  # ==========================================================
+  # FLUTTER
+  # ==========================================================
+
   flutter:
-    sdk: flutter
+    uses-material-design: true
 
-  # State Management
-  flutter_riverpod: ^2.5.1
-  riverpod_annotation: ^2.3.5
+    assets:
+      - assets/images/
+      - assets/icons/
+      - assets/translations/
 
-  # Dependency Injection
-  get_it: ^8.0.3
-  riverpod: ^2.6.1
-  # Database (Local / Offline)
-  drift: ^2.28.0
-  sqlite3_flutter_libs: ^0.5.32
-  path_provider: ^2.1.5
-  path: ^1.9.1
+    fonts:
+      - family: PlayfairDisplay
+        fonts:
+          - asset: assets/fonts/PlayfairDisplay-Variable.ttf
+            weight: 400
+          - asset: assets/fonts/PlayfairDisplay-Variable.ttf
+            weight: 500
+          - asset: assets/fonts/PlayfairDisplay-Variable.ttf
+            weight: 600
+          - asset: assets/fonts/PlayfairDisplay-Variable.ttf
+            weight: 700
+          - asset: assets/fonts/PlayfairDisplay-Italic.ttf
+            weight: 400
+            style: italic
 
-  archive: ^4.0.7
-  cryptography: ^2.7.0
-  flutter_secure_storage: ^9.2.4
-  # Routing
-  go_router: ^14.2.0
-
-  # Local Notifications
-  flutter_local_notifications: ^17.2.1+2
-  timezone: ^0.9.4
-  # Backup (Google Drive)
-  # PDF Generation & Printing
-  pdf: ^3.11.0
-  printing: ^5.13.1
-
-  # Charts
-  fl_chart: ^0.68.0
-
-  # WhatsApp / External Links
-  url_launcher: ^6.3.0
-
-  # Backup (Google Drive)
-  googleapis: ^13.2.0
-  google_sign_in: ^6.3.0
-  extension_google_sign_in_as_googleapis_auth: ^2.0.12
-  # Backup (Google Drive)
-#  googleapis: ^13.2.0
-#  google_sign_in: ^7.1.1
-  http: ^1.5.0
-  share_plus: ^12.0.0
-
-  # Responsive UI
-  flutter_screenutil: ^5.9.3
-
-  # Localization
-  easy_localization: ^3.0.7
-
-  # Image & File Handling
-  image_picker: ^1.1.2
-  file_picker: ^10.3.10
-
-  # Permissions
-  permission_handler: ^11.3.1
-
-  # Logging
-  logger: ^2.4.0
-
-  # Utilities
-  equatable: ^2.0.5
-  intl: ^0.20.2
-  uuid: ^4.4.2
-  collection: ^1.18.0
-  cached_network_image: ^3.4.0
-  flutter_svg: ^2.0.10+1
-  shared_preferences: ^2.2.3
-  crypto: ^3.0.5
-  local_auth: ^2.3.0
-
-  # Icons
-  cupertino_icons: ^1.0.8
-
-dev_dependencies:
-  flutter_test:
-    sdk: flutter
-  flutter_lints: ^4.0.0
-
-  # Code Generation
-  build_runner: ^2.4.11
-  drift_dev: ^2.19.1
-  riverpod_generator: ^2.4.0
-  json_serializable: ^6.8.0
-
-flutter:
-  uses-material-design: true
-
-  assets:
-    - assets/images/
-    - assets/icons/
-    - assets/translations/
-
-  fonts:
-    - family: PlayfairDisplay
-      fonts:
-        - asset: assets/fonts/PlayfairDisplay-Variable.ttf
-          weight: 400
-        - asset: assets/fonts/PlayfairDisplay-Variable.ttf
-          weight: 500
-        - asset: assets/fonts/PlayfairDisplay-Variable.ttf
-          weight: 600
-        - asset: assets/fonts/PlayfairDisplay-Variable.ttf
-          weight: 700
-        - asset: assets/fonts/PlayfairDisplay-Italic.ttf
-          weight: 400
-          style: italic
-    - family: DMSans
-      fonts:
-        - asset: assets/fonts/DMSans-Variable.ttf
-          weight: 300
-        - asset: assets/fonts/DMSans-Variable.ttf
-          weight: 400
-        - asset: assets/fonts/DMSans-Variable.ttf
-          weight: 500
-        - asset: assets/fonts/DMSans-Variable.ttf
-          weight: 600
-        - asset: assets/fonts/DMSans-Variable.ttf
-          weight: 700
-        - asset: assets/fonts/DMSans-Italic.ttf
-          weight: 400
-          style: italic
+      - family: DMSans
+        fonts:
+          - asset: assets/fonts/DMSans-Variable.ttf
+            weight: 300
+          - asset: assets/fonts/DMSans-Variable.ttf
+            weight: 400
+          - asset: assets/fonts/DMSans-Variable.ttf
+            weight: 500
+          - asset: assets/fonts/DMSans-Variable.ttf
+            weight: 600
+          - asset: assets/fonts/DMSans-Variable.ttf
+            weight: 700
+          - asset: assets/fonts/DMSans-Italic.ttf
+            weight: 400
+            style: italic
