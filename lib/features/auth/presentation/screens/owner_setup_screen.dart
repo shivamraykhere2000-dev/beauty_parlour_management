@@ -24,16 +24,17 @@ class OwnerSetupScreen extends ConsumerStatefulWidget {
 
 class _OwnerSetupScreenState extends ConsumerState<OwnerSetupScreen> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _firstnameController = TextEditingController();
+  final TextEditingController _lastnameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _gmailController = TextEditingController();
-  final TextEditingController _businessController =
-      TextEditingController(text: 'Blossom Beauty Studio');
+  final TextEditingController _businessController = TextEditingController();
   bool _saving = false;
 
   @override
   void dispose() {
-    _nameController.dispose();
+    _firstnameController.dispose();
+    _lastnameController.dispose();
     _phoneController.dispose();
     _gmailController.dispose();
     _businessController.dispose();
@@ -65,7 +66,8 @@ class _OwnerSetupScreenState extends ConsumerState<OwnerSetupScreen> {
     setState(() => _saving = true);
     final SettingsDao db = ref.read(settingsDaoProvider);
     try {
-      await db.setSetting('owner_name', _nameController.text.trim());
+      await db.setSetting('first_name', _firstnameController.text.trim());
+      await db.setSetting('last_name', _lastnameController.text.trim());
       await db.setSetting('owner_phone', _phoneController.text.trim());
       await db.setSetting('owner_gmail', _gmailController.text.trim());
       await db.setSetting(
@@ -128,9 +130,16 @@ class _OwnerSetupScreenState extends ConsumerState<OwnerSetupScreen> {
                       AppSpacing.md, AppSpacing.xxxl),
                   children: <Widget>[
                     _ValidatedField(
-                        label: 'YOUR FULL NAME *',
-                        hint: 'e.g. Priya Sharma',
-                        controller: _nameController,
+                        label: 'YOUR FIRST NAME *',
+                        hint: 'e.g. Priya',
+                        controller: _firstnameController,
+                        validator: _validateName,
+                        icon: Icons.person_outline),
+                    SizedBox(height: AppSpacing.md),
+                    _ValidatedField(
+                        label: 'YOUR LAST NAME *',
+                        hint: 'e.g. Sharma',
+                        controller: _lastnameController,
                         validator: _validateName,
                         icon: Icons.person_outline),
                     SizedBox(height: AppSpacing.md),

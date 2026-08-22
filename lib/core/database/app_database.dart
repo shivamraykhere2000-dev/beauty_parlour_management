@@ -54,7 +54,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.withExecutor(super.executor);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 1;
 
   @override
   MigrationStrategy get migration {
@@ -64,16 +64,16 @@ class AppDatabase extends _$AppDatabase {
         await _seed();
         await _seedWhatsappTemplates();
       },
-      onUpgrade: (Migrator m, int from, int to) async {
-        if (from < 2) {
-          // Additive only — existing Customers/Appointments/Services/
-          // InventoryItems/Expenses data and schema are untouched.
-          await m.createTable(settings);
-          await m.createTable(appNotifications);
-          await m.createTable(whatsappTemplates);
-          await _seedWhatsappTemplates();
-        }
-      },
+      // onUpgrade: (Migrator m, int from, int to) async {
+      //   if (from < 2) {
+      //     // Additive only — existing Customers/Appointments/Services/
+      //     // InventoryItems/Expenses data and schema are untouched.
+      //     await m.createTable(settings);
+      //     await m.createTable(appNotifications);
+      //     await m.createTable(whatsappTemplates);
+      //     await _seedWhatsappTemplates();
+      //   }
+      // },
     );
   }
 
@@ -227,145 +227,145 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> _seed() async {
     await batch((Batch b) {
-      b.insertAll(customers, <CustomersCompanion>[
-        CustomersCompanion.insert(
-            name: 'Anita Verma',
-            phone: '9876543210',
-            email: const Value<String>('anita@gmail.com'),
-            birthday: const Value<String?>('1990-07-15'),
-            joinDate: '2022-03-10',
-            visits: const Value<int>(42),
-            totalSpent: const Value<int>(38400),
-            points: const Value<int>(920),
-            membership: const Value<String?>('Gold'),
-            avatarInitials: 'AV',
-            lastVisit: const Value<String?>('2025-07-10'),
-            tags: const Value<String>('VIP,Regular'),
-            notes: const Value<String>(
-                'Prefers morning slots. Sensitive scalp — use mild shampoo only.')),
-        CustomersCompanion.insert(
-            name: 'Kavya Reddy',
-            phone: '9812345678',
-            email: const Value<String>('kavya.r@email.com'),
-            birthday: const Value<String?>('1995-03-22'),
-            joinDate: '2023-01-15',
-            visits: const Value<int>(18),
-            totalSpent: const Value<int>(14200),
-            points: const Value<int>(340),
-            membership: const Value<String?>('Silver'),
-            avatarInitials: 'KR',
-            lastVisit: const Value<String?>('2025-07-08'),
-            tags: const Value<String>('Regular'),
-            notes: const Value<String>(
-                'Loves hair treatments. Always does gel manicure.')),
-        CustomersCompanion.insert(
-            name: 'Sunita Patel',
-            phone: '9765432198',
-            joinDate: '2021-06-20',
-            birthday: const Value<String?>('1985-11-08'),
-            visits: const Value<int>(67),
-            totalSpent: const Value<int>(72300),
-            points: const Value<int>(1640),
-            membership: const Value<String?>('Platinum'),
-            avatarInitials: 'SP',
-            lastVisit: const Value<String?>('2025-07-12'),
-            tags: const Value<String>('VIP,Member'),
-            notes: const Value<String>(
-                'Long-time customer. Monthly hair color appointment.')),
-        CustomersCompanion.insert(
-            name: 'Meera Joshi',
-            phone: '9834567890',
-            email: const Value<String>('meera.j@gmail.com'),
-            birthday: const Value<String?>('1992-07-13'),
-            joinDate: '2024-02-01',
-            visits: const Value<int>(8),
-            totalSpent: const Value<int>(5600),
-            points: const Value<int>(120),
-            avatarInitials: 'MJ',
-            lastVisit: const Value<String?>('2025-06-28'),
-            tags: const Value<String>('New'),
-            notes: const Value<String>('Referred by Anita Verma.')),
-        CustomersCompanion.insert(
-            name: 'Ritu Agarwal',
-            phone: '9898989898',
-            email: const Value<String>('ritu.a@yahoo.com'),
-            birthday: const Value<String?>('1988-12-25'),
-            joinDate: '2022-09-14',
-            visits: const Value<int>(29),
-            totalSpent: const Value<int>(24800),
-            points: const Value<int>(580),
-            membership: const Value<String?>('Silver'),
-            avatarInitials: 'RA',
-            lastVisit: const Value<String?>('2025-07-05'),
-            tags: const Value<String>('Regular'),
-            notes: const Value<String>('Chocolate wax only please.')),
-        CustomersCompanion.insert(
-            name: 'Deepika Nair',
-            phone: '9923456789',
-            email: const Value<String>('deepika.n@gmail.com'),
-            birthday: const Value<String?>('1997-04-18'),
-            joinDate: '2023-08-22',
-            visits: const Value<int>(12),
-            totalSpent: const Value<int>(9800),
-            points: const Value<int>(210),
-            avatarInitials: 'DN',
-            lastVisit: const Value<String?>('2025-07-11'),
-            tags: const Value<String>('Active')),
-        CustomersCompanion.insert(
-            name: 'Pooja Mehta',
-            phone: '9741258963',
-            email: const Value<String>('pooja.m@email.com'),
-            birthday: const Value<String?>('1991-09-30'),
-            joinDate: '2021-12-05',
-            visits: const Value<int>(55),
-            totalSpent: const Value<int>(61200),
-            points: const Value<int>(1380),
-            membership: const Value<String?>('Gold'),
-            avatarInitials: 'PM',
-            lastVisit: const Value<String?>('2025-07-13'),
-            tags: const Value<String>('VIP,Regular'),
-            notes: const Value<String>(
-                'Allergy alert — Loreal only, no other hair dye brands.')),
-        CustomersCompanion.insert(
-            name: 'Sonia Khanna',
-            phone: '9654321780',
-            joinDate: '2024-05-18',
-            birthday: const Value<String?>('1994-06-07'),
-            visits: const Value<int>(5),
-            totalSpent: const Value<int>(3200),
-            points: const Value<int>(70),
-            avatarInitials: 'SK',
-            lastVisit: const Value<String?>('2025-07-01'),
-            tags: const Value<String>('New')),
-        CustomersCompanion.insert(
-            name: 'Rekha Singh',
-            phone: '9567891234',
-            email: const Value<String>('rekha.s@gmail.com'),
-            birthday: const Value<String?>('1983-02-14'),
-            joinDate: '2020-11-30',
-            visits: const Value<int>(89),
-            totalSpent: const Value<int>(95400),
-            points: const Value<int>(2100),
-            membership: const Value<String?>('Platinum'),
-            avatarInitials: 'RS',
-            lastVisit: const Value<String?>('2025-07-13'),
-            tags: const Value<String>('VIP,Member,Regular'),
-            notes: const Value<String>(
-                'Best customer. Monthly packages pre-booked.')),
-        CustomersCompanion.insert(
-            name: 'Lakshmi Iyer',
-            phone: '9845671230',
-            email: const Value<String>('lakshmi.i@gmail.com'),
-            birthday: const Value<String?>('1986-08-03'),
-            joinDate: '2022-07-01',
-            visits: const Value<int>(34),
-            totalSpent: const Value<int>(31600),
-            points: const Value<int>(720),
-            membership: const Value<String?>('Silver'),
-            avatarInitials: 'LI',
-            lastVisit: const Value<String?>('2025-07-09'),
-            tags: const Value<String>('Regular')),
-      ]);
+      // b.insertAll(customers, <CustomersCompanion>[
+      //   CustomersCompanion.insert(
+      //       name: 'Anita Verma',
+      //       phone: '9876543210',
+      //       email: const Value<String>('anita@gmail.com'),
+      //       birthday: const Value<String?>('1990-07-15'),
+      //       joinDate: '2022-03-10',
+      //       visits: const Value<int>(42),
+      //       totalSpent: const Value<int>(38400),
+      //       points: const Value<int>(920),
+      //       membership: const Value<String?>('Gold'),
+      //       avatarInitials: 'AV',
+      //       lastVisit: const Value<String?>('2025-07-10'),
+      //       tags: const Value<String>('VIP,Regular'),
+      //       notes: const Value<String>(
+      //           'Prefers morning slots. Sensitive scalp — use mild shampoo only.')),
+      //   CustomersCompanion.insert(
+      //       name: 'Kavya Reddy',
+      //       phone: '9812345678',
+      //       email: const Value<String>('kavya.r@email.com'),
+      //       birthday: const Value<String?>('1995-03-22'),
+      //       joinDate: '2023-01-15',
+      //       visits: const Value<int>(18),
+      //       totalSpent: const Value<int>(14200),
+      //       points: const Value<int>(340),
+      //       membership: const Value<String?>('Silver'),
+      //       avatarInitials: 'KR',
+      //       lastVisit: const Value<String?>('2025-07-08'),
+      //       tags: const Value<String>('Regular'),
+      //       notes: const Value<String>(
+      //           'Loves hair treatments. Always does gel manicure.')),
+      //   CustomersCompanion.insert(
+      //       name: 'Sunita Patel',
+      //       phone: '9765432198',
+      //       joinDate: '2021-06-20',
+      //       birthday: const Value<String?>('1985-11-08'),
+      //       visits: const Value<int>(67),
+      //       totalSpent: const Value<int>(72300),
+      //       points: const Value<int>(1640),
+      //       membership: const Value<String?>('Platinum'),
+      //       avatarInitials: 'SP',
+      //       lastVisit: const Value<String?>('2025-07-12'),
+      //       tags: const Value<String>('VIP,Member'),
+      //       notes: const Value<String>(
+      //           'Long-time customer. Monthly hair color appointment.')),
+      //   CustomersCompanion.insert(
+      //       name: 'Meera Joshi',
+      //       phone: '9834567890',
+      //       email: const Value<String>('meera.j@gmail.com'),
+      //       birthday: const Value<String?>('1992-07-13'),
+      //       joinDate: '2024-02-01',
+      //       visits: const Value<int>(8),
+      //       totalSpent: const Value<int>(5600),
+      //       points: const Value<int>(120),
+      //       avatarInitials: 'MJ',
+      //       lastVisit: const Value<String?>('2025-06-28'),
+      //       tags: const Value<String>('New'),
+      //       notes: const Value<String>('Referred by Anita Verma.')),
+      //   CustomersCompanion.insert(
+      //       name: 'Ritu Agarwal',
+      //       phone: '9898989898',
+      //       email: const Value<String>('ritu.a@yahoo.com'),
+      //       birthday: const Value<String?>('1988-12-25'),
+      //       joinDate: '2022-09-14',
+      //       visits: const Value<int>(29),
+      //       totalSpent: const Value<int>(24800),
+      //       points: const Value<int>(580),
+      //       membership: const Value<String?>('Silver'),
+      //       avatarInitials: 'RA',
+      //       lastVisit: const Value<String?>('2025-07-05'),
+      //       tags: const Value<String>('Regular'),
+      //       notes: const Value<String>('Chocolate wax only please.')),
+      //   CustomersCompanion.insert(
+      //       name: 'Deepika Nair',
+      //       phone: '9923456789',
+      //       email: const Value<String>('deepika.n@gmail.com'),
+      //       birthday: const Value<String?>('1997-04-18'),
+      //       joinDate: '2023-08-22',
+      //       visits: const Value<int>(12),
+      //       totalSpent: const Value<int>(9800),
+      //       points: const Value<int>(210),
+      //       avatarInitials: 'DN',
+      //       lastVisit: const Value<String?>('2025-07-11'),
+      //       tags: const Value<String>('Active')),
+      //   CustomersCompanion.insert(
+      //       name: 'Pooja Mehta',
+      //       phone: '9741258963',
+      //       email: const Value<String>('pooja.m@email.com'),
+      //       birthday: const Value<String?>('1991-09-30'),
+      //       joinDate: '2021-12-05',
+      //       visits: const Value<int>(55),
+      //       totalSpent: const Value<int>(61200),
+      //       points: const Value<int>(1380),
+      //       membership: const Value<String?>('Gold'),
+      //       avatarInitials: 'PM',
+      //       lastVisit: const Value<String?>('2025-07-13'),
+      //       tags: const Value<String>('VIP,Regular'),
+      //       notes: const Value<String>(
+      //           'Allergy alert — Loreal only, no other hair dye brands.')),
+      //   CustomersCompanion.insert(
+      //       name: 'Sonia Khanna',
+      //       phone: '9654321780',
+      //       joinDate: '2024-05-18',
+      //       birthday: const Value<String?>('1994-06-07'),
+      //       visits: const Value<int>(5),
+      //       totalSpent: const Value<int>(3200),
+      //       points: const Value<int>(70),
+      //       avatarInitials: 'SK',
+      //       lastVisit: const Value<String?>('2025-07-01'),
+      //       tags: const Value<String>('New')),
+      //   CustomersCompanion.insert(
+      //       name: 'Rekha Singh',
+      //       phone: '9567891234',
+      //       email: const Value<String>('rekha.s@gmail.com'),
+      //       birthday: const Value<String?>('1983-02-14'),
+      //       joinDate: '2020-11-30',
+      //       visits: const Value<int>(89),
+      //       totalSpent: const Value<int>(95400),
+      //       points: const Value<int>(2100),
+      //       membership: const Value<String?>('Platinum'),
+      //       avatarInitials: 'RS',
+      //       lastVisit: const Value<String?>('2025-07-13'),
+      //       tags: const Value<String>('VIP,Member,Regular'),
+      //       notes: const Value<String>(
+      //           'Best customer. Monthly packages pre-booked.')),
+      //   CustomersCompanion.insert(
+      //       name: 'Lakshmi Iyer',
+      //       phone: '9845671230',
+      //       email: const Value<String>('lakshmi.i@gmail.com'),
+      //       birthday: const Value<String?>('1986-08-03'),
+      //       joinDate: '2022-07-01',
+      //       visits: const Value<int>(34),
+      //       totalSpent: const Value<int>(31600),
+      //       points: const Value<int>(720),
+      //       membership: const Value<String?>('Silver'),
+      //       avatarInitials: 'LI',
+      //       lastVisit: const Value<String?>('2025-07-09'),
+      //       tags: const Value<String>('Regular')),
+      // ]);
 
       b.insertAll(services, <ServicesCompanion>[
         ServicesCompanion.insert(
@@ -586,54 +586,54 @@ class AppDatabase extends _$AppDatabase {
             method: 'Bank Transfer'),
       ]);
 
-      final String today = DateTime.now().toIso8601String().substring(0, 10);
-      b.insertAll(appointments, <AppointmentsCompanion>[
-        AppointmentsCompanion.insert(
-            customerId: 7,
-            customerName: 'Pooja Mehta',
-            services: 'Hair Color (Global),Blowdry & Style',
-            date: today,
-            time: '10:00 AM',
-            durationMinutes: const Value<int>(120),
-            amount: const Value<int>(2400),
-            status: const Value<String>('completed')),
-        AppointmentsCompanion.insert(
-            customerId: 9,
-            customerName: 'Rekha Singh',
-            services: 'Gold Facial,Threading - Eyebrows',
-            date: today,
-            time: '11:30 AM',
-            durationMinutes: const Value<int>(90),
-            amount: const Value<int>(1200),
-            status: const Value<String>('completed')),
-        AppointmentsCompanion.insert(
-            customerId: 4,
-            customerName: 'Meera Joshi',
-            services: 'Haircut & Style',
-            date: today,
-            time: '02:00 PM',
-            durationMinutes: const Value<int>(60),
-            amount: const Value<int>(600),
-            status: const Value<String>('confirmed')),
-        AppointmentsCompanion.insert(
-            customerId: 6,
-            customerName: 'Deepika Nair',
-            services: 'Manicure (Regular),Pedicure (Regular)',
-            date: today,
-            time: '03:30 PM',
-            durationMinutes: const Value<int>(75),
-            amount: const Value<int>(900),
-            status: const Value<String>('confirmed')),
-        AppointmentsCompanion.insert(
-            customerId: 1,
-            customerName: 'Anita Verma',
-            services: 'Hair Spa,Head Massage',
-            date: today,
-            time: '05:00 PM',
-            durationMinutes: const Value<int>(90),
-            amount: const Value<int>(1400),
-            status: const Value<String>('pending')),
-      ]);
+      // final String today = DateTime.now().toIso8601String().substring(0, 10);
+      // b.insertAll(appointments, <AppointmentsCompanion>[
+      //   AppointmentsCompanion.insert(
+      //       customerId: 7,
+      //       customerName: 'Pooja Mehta',
+      //       services: 'Hair Color (Global),Blowdry & Style',
+      //       date: today,
+      //       time: '10:00 AM',
+      //       durationMinutes: const Value<int>(120),
+      //       amount: const Value<int>(2400),
+      //       status: const Value<String>('completed')),
+      //   AppointmentsCompanion.insert(
+      //       customerId: 9,
+      //       customerName: 'Rekha Singh',
+      //       services: 'Gold Facial,Threading - Eyebrows',
+      //       date: today,
+      //       time: '11:30 AM',
+      //       durationMinutes: const Value<int>(90),
+      //       amount: const Value<int>(1200),
+      //       status: const Value<String>('completed')),
+      //   AppointmentsCompanion.insert(
+      //       customerId: 4,
+      //       customerName: 'Meera Joshi',
+      //       services: 'Haircut & Style',
+      //       date: today,
+      //       time: '02:00 PM',
+      //       durationMinutes: const Value<int>(60),
+      //       amount: const Value<int>(600),
+      //       status: const Value<String>('confirmed')),
+      //   AppointmentsCompanion.insert(
+      //       customerId: 6,
+      //       customerName: 'Deepika Nair',
+      //       services: 'Manicure (Regular),Pedicure (Regular)',
+      //       date: today,
+      //       time: '03:30 PM',
+      //       durationMinutes: const Value<int>(75),
+      //       amount: const Value<int>(900),
+      //       status: const Value<String>('confirmed')),
+      //   AppointmentsCompanion.insert(
+      //       customerId: 1,
+      //       customerName: 'Anita Verma',
+      //       services: 'Hair Spa,Head Massage',
+      //       date: today,
+      //       time: '05:00 PM',
+      //       durationMinutes: const Value<int>(90),
+      //       amount: const Value<int>(1400),
+      //       status: const Value<String>('pending')),
+      // ]);
     });
   }
 }
