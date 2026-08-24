@@ -51,7 +51,15 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
 
   final List<Service> _adHocServices = <Service>[];
 
+  // Services attached to an existing appointment. These can be edited
+  // from the final billing step before payment is collected.
+  final List<Service> _appointmentServices = <Service>[];
+
   bool _pickingServices = false;
+  bool _appointmentServicesInitialized = false;
+
+  List<Service> get _selectedServices =>
+      widget.appointmentId != null ? _appointmentServices : _adHocServices;
 
   final TextEditingController _customerSearchController =
       TextEditingController();
@@ -72,6 +80,8 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
     if (widget.appointmentId != null) {
       final AsyncValue<List<Appointment>> apptsAsync =
           ref.watch(allAppointmentsProvider);
+      final AsyncValue<List<Service>> servicesAsync =
+          ref.watch(servicesProvider);
 
       return apptsAsync.when(
         loading: () => const Scaffold(
@@ -103,51 +113,101 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
             );
           }
 
-          final List<String> serviceNames = appt.services
-              .split(',')
-              .where(
-                (String s) => s.trim().isNotEmpty,
-              )
-              .toList();
-
-          final int perItem = serviceNames.isEmpty
-              ? 0
-              : (appt.amount / serviceNames.length).round();
-
-          final String customerPhone = ref.watch(customersProvider).maybeWhen(
-                data: (List<Customer> customers) {
-                  return customers
-                          .where(
-                            (Customer c) => c.id == appt.customerId,
-                          )
-                          .firstOrNull
-                          ?.phone ??
-                      '';
-                },
-                orElse: () => '',
-              );
-
-          final List<InvoiceLineItem> lineItems = <InvoiceLineItem>[
-            for (final String name in serviceNames)
-              InvoiceLineItem(
-                name: name,
-                price: perItem,
-              ),
-          ];
-
-          return _buildScaffold(
-            customerName: appt.customerName,
-            customerPhone: customerPhone,
-            dateTimeLabel: '${appt.date} · ${appt.time}',
-            lineItems: lineItems,
-            onCollect: () => _collectForAppointment(appt),
-            onSendWhatsApp: () => _finalizeAndSendWhatsApp(
-              onFinalize: () => _collectForAppointment(appt),
-              customerName: appt.customerName,
-              customerPhone: customerPhone,
-              dateTimeLabel: '${appt.date} · ${appt.time}',
-              lineItems: lineItems,
+          return servicesAsync.when(
+            loading: () => const Scaffold(
+              body: LoadingWidget(),
             ),
+            error: (Object e, _) => Scaffold(
+              body: AppErrorWidget(
+                message: '$e',
+              ),
+            ),
+            data: (List<Service> allServices) {
+              // Initialize the appointment's services only once. After that,
+              // Add/Remove changes are kept in local state until collection.
+              if (!_appointmentServicesInitialized) {
+                final List<String> appointmentServiceNames = appt.services
+                    .split(',')
+                    .map((String s) => s.trim())
+                    .where((String s) => s.isNotEmpty)
+                    .toList();
+
+                _appointmentServices
+                  ..clear()
+                  ..addAll(
+                    allServices.where(
+                      (Service service) =>
+                          appointmentServiceNames.contains(service.name),
+                    ),
+                  );
+
+                _appointmentServicesInitialized = true;
+              }
+
+              final String customerPhone =
+                  ref.watch(customersProvider).maybeWhen(
+                        data: (List<Customer> customers) {
+                          return customers
+                                  .where(
+                                    (Customer c) => c.id == appt.customerId,
+                                  )
+                                  .firstOrNull
+                                  ?.phone ??
+                              '';
+                        },
+                        orElse: () => '',
+                      );
+
+              // While the user is choosing services, show the service picker.
+              if (_pickingServices) {
+                return _buildServicePicker(
+                  allServices: allServices,
+                  title: 'Edit Services',
+                  onBack: () {
+                    setState(() {
+                      _pickingServices = false;
+                    });
+                  },
+                );
+              }
+
+              final List<InvoiceLineItem> lineItems = <InvoiceLineItem>[
+                for (final Service service in _appointmentServices)
+                  InvoiceLineItem(
+                    name: service.name,
+                    price: service.price,
+                  ),
+              ];
+
+              return _buildScaffold(
+                customerName: appt.customerName,
+                customerPhone: customerPhone,
+                dateTimeLabel: '${appt.date} · ${appt.time}',
+                lineItems: lineItems,
+                onCollect: () => _collectForAppointment(appt),
+                onAddMore: () {
+                  setState(() {
+                    _pickingServices = true;
+                  });
+                },
+                onRemoveItem: (int index) {
+                  if (index < 0 || index >= _appointmentServices.length) {
+                    return;
+                  }
+
+                  setState(() {
+                    _appointmentServices.removeAt(index);
+                  });
+                },
+                onSendWhatsApp: () => _finalizeAndSendWhatsApp(
+                  onFinalize: () => _collectForAppointment(appt),
+                  customerName: appt.customerName,
+                  customerPhone: customerPhone,
+                  dateTimeLabel: '${appt.date} · ${appt.time}',
+                  lineItems: lineItems,
+                ),
+              );
+            },
           );
         },
       );
@@ -336,96 +396,19 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
             // PICK SERVICES
             // ========================================================
             if (_pickingServices) {
-              return Scaffold(
-                backgroundColor: AppColors.background,
-                appBar: AppTopBar(
-                  title: 'Add Services',
-                  onBack: () {
-                    setState(() {
-                      if (_adHocServices.isEmpty) {
-                        _adHocCustomer = null;
-                      } else {
-                        _pickingServices = false;
-                      }
-                    });
-                  },
-                ),
-                body: Column(
-                  children: <Widget>[
-                    Expanded(
-                      child: ListView(
-                        padding: EdgeInsets.all(
-                          AppSpacing.md,
-                        ),
-                        children: <Widget>[
-                          Text(
-                            'Tap to add/remove — you can pick multiple services.',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppTypography.caption(
-                              AppColors.mutedForeground,
-                            ),
-                          ),
-                          SizedBox(
-                            height: AppSpacing.sm,
-                          ),
-                          for (final Service service
-                              in allServices) ...<Widget>[
-                            _SelectableServiceRow(
-                              service: service,
-                              selected: _adHocServices.any(
-                                (Service selectedService) =>
-                                    selectedService.id == service.id,
-                              ),
-                              onTap: () {
-                                setState(() {
-                                  final bool alreadySelected =
-                                      _adHocServices.any(
-                                    (Service selectedService) =>
-                                        selectedService.id == service.id,
-                                  );
-
-                                  if (alreadySelected) {
-                                    _adHocServices.removeWhere(
-                                      (Service selectedService) =>
-                                          selectedService.id == service.id,
-                                    );
-                                  } else {
-                                    _adHocServices.add(service);
-                                  }
-                                });
-                              },
-                            ),
-                            SizedBox(
-                              height: AppSpacing.xs,
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    Padding(
-                      padding: EdgeInsets.fromLTRB(
-                        AppSpacing.md,
-                        0,
-                        AppSpacing.md,
-                        AppSpacing.md,
-                      ),
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: AppButton(
-                          label: 'Continue (${_adHocServices.length} selected)',
-                          onPressed: _adHocServices.isEmpty
-                              ? null
-                              : () {
-                                  setState(() {
-                                    _pickingServices = false;
-                                  });
-                                },
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+              return _buildServicePicker(
+                allServices: allServices,
+                title: 'Add Services',
+                onBack: () {
+                  setState(() {
+                    if (_adHocServices.isEmpty) {
+                      _adHocCustomer = null;
+                      _pickingServices = false;
+                    } else {
+                      _pickingServices = false;
+                    }
+                  });
+                },
               );
             }
 
@@ -478,6 +461,94 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
           },
         );
       },
+    );
+  }
+
+  // ========================================================================
+  // SERVICE PICKER
+  // ========================================================================
+
+  Widget _buildServicePicker({
+    required List<Service> allServices,
+    required String title,
+    required VoidCallback onBack,
+  }) {
+    final List<Service> selectedServices = _selectedServices;
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppTopBar(
+        title: title,
+        onBack: onBack,
+      ),
+      body: Column(
+        children: <Widget>[
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.all(AppSpacing.md),
+              children: <Widget>[
+                Text(
+                  'Tap to add/remove — you can pick multiple services.',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.caption(
+                    AppColors.mutedForeground,
+                  ),
+                ),
+                SizedBox(height: AppSpacing.sm),
+                for (final Service service in allServices) ...<Widget>[
+                  _SelectableServiceRow(
+                    service: service,
+                    selected: selectedServices.any(
+                      (Service selectedService) =>
+                          selectedService.id == service.id,
+                    ),
+                    onTap: () {
+                      setState(() {
+                        final bool alreadySelected = selectedServices.any(
+                          (Service selectedService) =>
+                              selectedService.id == service.id,
+                        );
+
+                        if (alreadySelected) {
+                          selectedServices.removeWhere(
+                            (Service selectedService) =>
+                                selectedService.id == service.id,
+                          );
+                        } else {
+                          selectedServices.add(service);
+                        }
+                      });
+                    },
+                  ),
+                  SizedBox(height: AppSpacing.xs),
+                ],
+              ],
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              AppSpacing.md,
+              0,
+              AppSpacing.md,
+              AppSpacing.md,
+            ),
+            child: SizedBox(
+              width: double.infinity,
+              child: AppButton(
+                label: 'Continue (${selectedServices.length} selected)',
+                onPressed: selectedServices.isEmpty
+                    ? null
+                    : () {
+                        setState(() {
+                          _pickingServices = false;
+                        });
+                      },
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1036,21 +1107,53 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
   Future<void> _collectForAppointment(
     Appointment appt,
   ) async {
+    if (_appointmentServices.isEmpty) {
+      if (mounted) {
+        AppSnackBar.show(
+          context,
+          message: 'Please keep at least one service on the bill.',
+          type: AppSnackBarType.error,
+        );
+      }
+      return;
+    }
+
     setState(() {
       _collecting = true;
     });
 
     final AppointmentsDao appointmentsDao = ref.read(appointmentsDaoProvider);
-
     final CustomersDao customersDao = ref.read(customersDaoProvider);
 
-    final int discountedTotal = (appt.amount * (100 - _discount) / 100).round();
+    final int subtotal = _appointmentServices.fold<int>(
+      0,
+      (
+        int sum,
+        Service service,
+      ) =>
+          sum + service.price,
+    );
+
+    final int discountedTotal = (subtotal * (100 - _discount) / 100).round();
+
+    final int duration = _appointmentServices.fold<int>(
+      0,
+      (
+        int sum,
+        Service service,
+      ) =>
+          sum + service.duration,
+    );
 
     try {
       await appointmentsDao.updateAppointment(
         appt.copyWith(
           status: 'completed',
+          services: _appointmentServices
+              .map((Service service) => service.name)
+              .join(','),
           amount: discountedTotal,
+          durationMinutes: duration,
         ),
       );
 

@@ -123,8 +123,21 @@ class _AppointmentsScreenState extends ConsumerState<AppointmentsScreen> {
                               for (final Appointment apt in list) ...<Widget>[
                                 _AppointmentCard(
                                   appointment: apt,
-                                  onBill: () =>
-                                      widget.onBillAppointment?.call(apt.id),
+                                  onBill: () async {
+                                    // Clicking Bill completes the appointment first,
+                                    // then opens the final billing step.
+                                    if (apt.status != 'completed') {
+                                      await db.updateAppointment(
+                                        apt.copyWith(status: 'completed'),
+                                      );
+                                    }
+
+                                    if (!context.mounted) {
+                                      return;
+                                    }
+
+                                    widget.onBillAppointment?.call(apt.id);
+                                  },
                                   onMarkCompleted: apt.status == 'confirmed' ||
                                           apt.status == 'pending'
                                       ? () => db.updateAppointment(

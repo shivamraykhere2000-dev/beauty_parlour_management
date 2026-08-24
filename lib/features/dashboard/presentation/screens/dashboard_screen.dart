@@ -139,11 +139,13 @@ class DashboardScreen extends ConsumerWidget {
                                   icon: Icons.event_available_outlined,
                                   title: 'No appointments today',
                                   message: 'Tap "New Appt" below to book one.')
-                            else
-                              for (final Appointment apt in appts) ...<Widget>[
+                            else ...<Widget>[
+                              for (final Appointment apt
+                                  in appts.take(4)) ...<Widget>[
                                 _ScheduleCard(appointment: apt),
                                 SizedBox(height: AppSpacing.sm),
                               ],
+                            ],
                             if (lowStock.isNotEmpty) ...<Widget>[
                               SizedBox(height: AppSpacing.xs),
                               _LowStockCard(

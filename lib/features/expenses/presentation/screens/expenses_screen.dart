@@ -91,7 +91,8 @@ class ExpensesScreen extends ConsumerWidget {
                               style: AppTypography.label(AppColors.destructive)
                                   .copyWith(fontWeight: AppTypography.bold)),
                           InkWell(
-                            onTap: () => dao.deleteExpense(e.id),
+                            onTap: () =>
+                                _showDeleteConfirmation(context, dao, e.id),
                             child: Text('Delete',
                                 style: AppTypography.caption(
                                     AppColors.mutedForeground)),
@@ -107,6 +108,46 @@ class ExpensesScreen extends ConsumerWidget {
           );
         },
       ),
+    );
+  }
+
+  void _showDeleteConfirmation(
+    BuildContext context,
+    ExpensesDao dao,
+    int expenseId,
+  ) {
+    showDialog<void>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Delete Expense'),
+          content: Text(
+            'Are you sure you want to delete this expense?',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () async {
+                await dao.deleteExpense(expenseId);
+                if (dialogContext.mounted) {
+                  Navigator.of(dialogContext).pop();
+                }
+              },
+              child: Text(
+                'Delete',
+                style: TextStyle(
+                  color: AppColors.destructive,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 

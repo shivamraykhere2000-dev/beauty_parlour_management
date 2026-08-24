@@ -175,7 +175,11 @@ class _ServicesScreenState extends ConsumerState<ServicesScreen> {
                                                 fontWeight:
                                                     AppTypography.bold)),
                                 InkWell(
-                                  onTap: () => dao.deleteService(sv.id),
+                                  onTap: () => _showDeleteConfirmation(
+                                    context,
+                                    dao,
+                                    sv,
+                                  ),
                                   child: const Icon(Icons.delete_outline,
                                       size: 16, color: Color(0xFFC9B0B8)),
                                 ),
@@ -193,6 +197,47 @@ class _ServicesScreenState extends ConsumerState<ServicesScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  void _showDeleteConfirmation(
+    BuildContext context,
+    ServicesDao dao,
+    Service service,
+  ) {
+    showDialog<void>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Delete Service'),
+          content: Text(
+            'Are you sure you want to delete "${service.name}"?\n\n'
+            'This action cannot be undone.',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () async {
+                await dao.deleteService(service.id);
+                if (dialogContext.mounted) {
+                  Navigator.of(dialogContext).pop();
+                }
+              },
+              child: Text(
+                'Delete',
+                style: TextStyle(
+                  color: AppColors.destructive,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 

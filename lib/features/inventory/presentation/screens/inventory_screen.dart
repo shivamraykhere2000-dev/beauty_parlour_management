@@ -145,7 +145,10 @@ class InventoryScreen extends ConsumerWidget {
 }
 
 class _InventoryRow extends StatelessWidget {
-  const _InventoryRow({required this.item, required this.db});
+  const _InventoryRow({
+    required this.item,
+    required this.db,
+  });
 
   final InventoryItem item;
   final InventoryitemsDao db;
@@ -153,6 +156,7 @@ class _InventoryRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool low = item.stock <= item.minStock;
+
     return AppCard(
       child: Row(
         children: <Widget>[
@@ -160,21 +164,32 @@ class _InventoryRow extends StatelessWidget {
             width: 40.r,
             height: 40.r,
             decoration: BoxDecoration(
-                color: const Color(0xFFFFF0F4),
-                borderRadius: BorderRadius.circular(AppDimensions.radiusMd)),
-            child: const Icon(Icons.inventory_2_outlined,
-                color: AppColors.primary, size: 20),
+              color: const Color(0xFFFFF0F4),
+              borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+            ),
+            child: const Icon(
+              Icons.inventory_2_outlined,
+              color: AppColors.primary,
+              size: 20,
+            ),
           ),
           SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text(item.name,
-                    style: AppTypography.label(AppColors.foreground)
-                        .copyWith(fontWeight: AppTypography.bold)),
-                Text('${item.category} · ₹${item.price}/${item.unit}',
-                    style: AppTypography.caption(AppColors.mutedForeground)),
+                Text(
+                  item.name,
+                  style: AppTypography.label(AppColors.foreground).copyWith(
+                    fontWeight: AppTypography.bold,
+                  ),
+                ),
+                Text(
+                  '${item.category} · ₹${item.price}/${item.unit}',
+                  style: AppTypography.caption(
+                    AppColors.mutedForeground,
+                  ),
+                ),
               ],
             ),
           ),
@@ -184,19 +199,34 @@ class _InventoryRow extends StatelessWidget {
               Text(
                 '${item.stock} ${item.unit}',
                 style: AppTypography.label(
-                        low ? AppColors.destructive : AppColors.foreground)
-                    .copyWith(fontWeight: AppTypography.bold),
+                  low ? AppColors.destructive : AppColors.foreground,
+                ).copyWith(
+                  fontWeight: AppTypography.bold,
+                ),
               ),
               SizedBox(height: 2.h),
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
                   _AdjustButton(
-                      icon: Icons.remove,
-                      onTap: () => db.adjustStock(item.id, -1)),
+                    icon: Icons.remove,
+                    onTap: () => db.adjustStock(item.id, -1),
+                  ),
                   SizedBox(width: 6.w),
                   _AdjustButton(
-                      icon: Icons.add, onTap: () => db.adjustStock(item.id, 1)),
+                    icon: Icons.add,
+                    onTap: () => db.adjustStock(item.id, 1),
+                  ),
+                  SizedBox(width: 6.w),
+                  _AdjustButton(
+                    icon: Icons.delete_outline,
+                    color: AppColors.destructive,
+                    onTap: () => _showDeleteConfirmation(
+                      context,
+                      item,
+                      db,
+                    ),
+                  ),
                 ],
               ),
             ],
@@ -205,25 +235,79 @@ class _InventoryRow extends StatelessWidget {
       ),
     );
   }
+
+  void _showDeleteConfirmation(
+    BuildContext context,
+    InventoryItem item,
+    InventoryitemsDao db,
+  ) {
+    showDialog<void>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Delete Inventory Item?'),
+          content: Text(
+            'Are you sure you want to delete "${item.name}"? '
+            'This action cannot be undone.',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () async {
+                await db.deleteInventoryItem(item.id);
+                if (dialogContext.mounted) {
+                  Navigator.of(dialogContext).pop();
+                }
+              },
+              child: Text(
+                'Delete',
+                style: TextStyle(
+                  color: AppColors.destructive,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
 }
 
 class _AdjustButton extends StatelessWidget {
-  const _AdjustButton({required this.icon, required this.onTap});
+  const _AdjustButton({
+    required this.icon,
+    required this.onTap,
+    this.color,
+  });
 
   final IconData icon;
   final VoidCallback onTap;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(AppDimensions.radiusPill),
+      borderRadius: BorderRadius.circular(
+        AppDimensions.radiusPill,
+      ),
       child: Container(
         width: 24.r,
         height: 24.r,
         decoration: const BoxDecoration(
-            color: Color(0xFFF0E8EC), shape: BoxShape.circle),
-        child: Icon(icon, size: 14, color: AppColors.primary),
+          color: Color(0xFFF0E8EC),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          icon,
+          size: 14,
+          color: color ?? AppColors.primary,
+        ),
       ),
     );
   }
