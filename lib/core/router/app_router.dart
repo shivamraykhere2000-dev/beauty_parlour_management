@@ -14,7 +14,7 @@ import '../../features/expenses/presentation/screens/expenses_screen.dart';
 import '../../features/inventory/presentation/screens/inventory_screen.dart';
 import '../../features/loyalty/presentation/screens/loyalty_screen.dart';
 import '../../features/memberships/presentation/screens/memberships_screen.dart';
-import '../../features/notifications/presentation/screens/notification_screen.dart';
+import '../../features/notifications/presentation/screens/notification_permission_screen.dart';
 import '../../features/packages/presentation/screens/packages_screen.dart';
 import '../../features/services/presentation/screens/services_screen.dart';
 import '../../features/whatsapp/presentation/screens/whatsapp_screen.dart';
