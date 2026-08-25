@@ -179,6 +179,16 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
                   ),
               ];
 
+              final now = DateTime.now();
+              final dateLabel = '${now.year}-'
+                  '${now.month.toString().padLeft(2, '0')}-'
+                  '${now.day.toString().padLeft(2, '0')}';
+              final hour = now.hour % 12 == 0 ? 12 : now.hour % 12;
+              final amPm = now.hour >= 12 ? 'PM' : 'AM';
+
+              final timeLabel = '${hour.toString().padLeft(2, '0')}:'
+                  '${now.minute.toString().padLeft(2, '0')} $amPm';
+
               return _buildScaffold(
                 customerName: appt.customerName,
                 customerPhone: customerPhone,
@@ -203,7 +213,7 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
                   onFinalize: () => _collectForAppointment(appt),
                   customerName: appt.customerName,
                   customerPhone: customerPhone,
-                  dateTimeLabel: '${appt.date} · ${appt.time}',
+                  dateTimeLabel: '$dateLabel · $timeLabel',
                   lineItems: lineItems,
                 ),
               );
