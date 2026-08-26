@@ -17,36 +17,184 @@ class AppNotificationsDao extends DatabaseAccessor<AppDatabase>
             ]))
           .watch();
 
-  Future<int> addNotification(
-      {required String type, required String title, required String body}) {
-    return into(appNotifications).insert(AppNotificationsCompanion.insert(
-      type: type,
-      title: title,
-      body: body,
-      createdAt: DateTime.now().toIso8601String(),
-    ));
+  // ============================================================
+  // WATCH UNREAD NOTIFICATIONS
+  // ============================================================
+
+  Stream<List<AppNotification>> watchUnreadNotifications() {
+    return (select(appNotifications)
+          ..where((tbl) => tbl.isRead.equals(false))
+          ..orderBy([
+            (tbl) => OrderingTerm(
+                  expression: tbl.createdAt,
+                  mode: OrderingMode.desc,
+                ),
+          ]))
+        .watch();
   }
+
+  // ============================================================
+  // UNREAD COUNT
+  // ============================================================
+  Stream<int> watchUnreadNotificationCount() {
+    final query = selectOnly(appNotifications)
+      ..addColumns([appNotifications.id.count()])
+      ..where(appNotifications.isRead.equals(false));
+    return query.map((row) {
+      return row.read(appNotifications.id.count()) ?? 0;
+    }).watchSingle();
+  }
+
+  // ============================================================
+  // GET NOTIFICATION BY ID
+  // ============================================================
+
+  Future<AppNotification?> getNotificationById(int id) {
+    return (select(appNotifications)..where((tbl) => tbl.id.equals(id)))
+        .getSingleOrNull();
+  }
+
+  // ============================================================
+  // GET BY UNIQUE KEY
+  // ============================================================
+
+  Future<AppNotification?> getByUniqueKey(String uniqueKey) {
+    return (select(appNotifications)
+          ..where((tbl) => tbl.uniqueKey.equals(uniqueKey)))
+        .getSingleOrNull();
+  }
+
+  // ============================================================
+  // INSERT
+  // ============================================================
+
+  Future<int> insertNotification(
+    AppNotificationsCompanion notification,
+  ) {
+    return into(appNotifications).insert(
+      notification,
+      mode: InsertMode.insertOrIgnore,
+    );
+  }
+
+  // ============================================================
+  // MARK AS READ
+  // ============================================================
 
   Future<void> markNotificationRead(int id) async {
-    await (update(appNotifications)..where((t) => t.id.equals(id)))
-        .write(const AppNotificationsCompanion(read: Value<bool>(true)));
+    await (update(appNotifications)..where((tbl) => tbl.id.equals(id))).write(
+      AppNotificationsCompanion(
+        isRead: const Value(true),
+        readAt: Value(DateTime.now()),
+      ),
+    );
   }
 
-  Future<void> clearAllNotifications() => delete(appNotifications).go();
+  // ============================================================
+  // MARK ACTION AS COMPLETED
+  // ============================================================
 
-  /// Deletes notifications older than 15 days. Safe to call on every app
-  /// start / dashboard load — it's a no-op when nothing is old enough.
-  Future<void> purgeOldNotifications() async {
-    final DateTime cutoff = DateTime.now().subtract(const Duration(days: 15));
-    final List<AppNotification> all = await select(appNotifications).get();
-    final List<int> staleIds = all
-        .where((AppNotification n) {
-          final DateTime? created = DateTime.tryParse(n.createdAt);
-          return created != null && created.isBefore(cutoff);
-        })
-        .map((AppNotification n) => n.id)
-        .toList();
-    if (staleIds.isEmpty) return;
-    await (delete(appNotifications)..where((t) => t.id.isIn(staleIds))).go();
+  Future<void> markActionCompleted(int id) async {
+    final DateTime now = DateTime.now();
+
+    await (update(appNotifications)..where((tbl) => tbl.id.equals(id))).write(
+      AppNotificationsCompanion(
+        isRead: const Value(true),
+        readAt: Value(now),
+        isActionCompleted: const Value(true),
+        actionCompletedAt: Value(now),
+      ),
+    );
+  }
+
+  // ============================================================
+  // MARK ALL AS READ
+  // ============================================================
+
+  Future<void> markAllNotificationsRead() async {
+    await update(appNotifications).write(
+      AppNotificationsCompanion(
+        isRead: const Value(true),
+        readAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  // ============================================================
+  // DELETE ONE
+  // ============================================================
+
+  Future<void> deleteNotification(int id) async {
+    await (delete(appNotifications)..where((tbl) => tbl.id.equals(id))).go();
+  }
+
+  // ============================================================
+  // CLEAR ALL
+  // ============================================================
+
+  Future<void> clearAllNotifications() async {
+    await delete(appNotifications).go();
+  }
+
+  // ============================================================
+  // DELETE EXPIRED
+  // ============================================================
+
+  Future<int> deleteExpiredNotifications() async {
+    final DateTime now = DateTime.now();
+
+    return (delete(appNotifications)
+          ..where(
+            (tbl) => tbl.expiresAt.isSmallerThanValue(now),
+          ))
+        .go();
+  }
+
+  // ============================================================
+  // DELETE CUSTOMER'S FOLLOW-UP NOTIFICATION
+  // ============================================================
+
+  Future<void> deleteCustomerFollowUpNotification(
+    int customerId,
+  ) async {
+    await (delete(appNotifications)
+          ..where(
+            (tbl) =>
+                tbl.customerId.equals(customerId) &
+                tbl.type.equals('follow_up'),
+          ))
+        .go();
+  }
+
+  // ============================================================
+  // DELETE APPOINTMENT NOTIFICATION
+  // ============================================================
+
+  Future<void> deleteAppointmentNotification(
+    int appointmentId,
+  ) async {
+    await (delete(appNotifications)
+          ..where(
+            (tbl) =>
+                tbl.appointmentId.equals(appointmentId) &
+                tbl.type.equals('appointment'),
+          ))
+        .go();
+  }
+
+  // ============================================================
+  // DELETE LOW STOCK NOTIFICATION
+  // ============================================================
+
+  Future<void> deleteLowStockNotification(
+    int inventoryItemId,
+  ) async {
+    await (delete(appNotifications)
+          ..where(
+            (tbl) =>
+                tbl.inventoryItemId.equals(inventoryItemId) &
+                tbl.type.equals('low_stock'),
+          ))
+        .go();
   }
 }

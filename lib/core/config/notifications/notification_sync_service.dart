@@ -18,42 +18,26 @@ class NotificationSyncService {
 
   Future<void> sync() async {
     final AppNotificationsDao dao = ref.read(appNotificationsDaoProvider);
-
     await dao.deleteExpiredNotifications();
-
     await _syncBirthdays(dao);
-
     await _syncFollowUps(dao);
   }
 
   Future<void> _syncBirthdays(
     AppNotificationsDao dao,
   ) async {
-    final List<Customer> customers = ref.read(customersProvider).maybeWhen(
-          data: (List<Customer> list) => list,
-          orElse: () => const <Customer>[],
-        );
-
-    if (customers.isEmpty) {
-      return;
-    }
-
+    final List<Customer> customers = await ref.read(customersProvider.future);
     final DateTime now = DateTime.now();
-
     final String monthDay = '${now.month.toString().padLeft(2, '0')}-'
         '${now.day.toString().padLeft(2, '0')}';
-
     for (final Customer customer in customers) {
       final String birthday = customer.birthday ?? '';
-
       if (birthday.isEmpty) {
         continue;
       }
-
       if (!birthday.endsWith(monthDay)) {
         continue;
       }
-
       await dao.insertNotification(
         birthdayNotification(
           customer: customer,
@@ -89,9 +73,7 @@ class NotificationSyncService {
     if (customers.isEmpty || appointments.isEmpty) {
       return;
     }
-
     final DateTime now = DateTime.now();
-
     for (final Customer customer in customers) {
       final List<Appointment> customerAppointments = appointments.where(
         (Appointment appointment) {

@@ -594,11 +594,6 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
       appBar: AppTopBar(
         title: 'Generate Invoice',
         onBack: widget.onBack,
-        trailing: const Icon(
-          Icons.share_outlined,
-          color: Colors.white,
-          size: 20,
-        ),
       ),
       body: LayoutBuilder(
         builder: (

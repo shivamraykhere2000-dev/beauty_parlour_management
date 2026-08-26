@@ -147,7 +147,7 @@ class _BookAppointmentScreenState extends ConsumerState<BookAppointmentScreen> {
     message.writeln('📅 Date: $appointmentDate');
     message.writeln('⏰ Time: $_time');
     message.writeln('✂️ Services: $serviceNames');
-    message.writeln('⏱ Duration: $_duration minutes');
+    message.writeln('⏱ Duration: $_formattedDuration');
     message.writeln('💰 Total Amount: ₹$_total');
 
     if (notes.isNotEmpty) {
@@ -186,6 +186,22 @@ class _BookAppointmentScreenState extends ConsumerState<BookAppointmentScreen> {
     }
   }
 
+  String get _formattedDuration {
+    if (_duration < 60) {
+      return '$_duration minutes';
+    }
+
+    final int hours = _duration ~/ 60;
+    final int minutes = _duration % 60;
+
+    if (minutes == 0) {
+      return hours == 1 ? '1 hour' : '$hours hours';
+    }
+
+    return hours == 1
+        ? '1 hour $minutes minutes'
+        : '$hours hours $minutes minutes';
+  }
   // ============================================================
   // CONFIRM APPOINTMENT
   // ============================================================
@@ -689,7 +705,7 @@ class _BookAppointmentScreenState extends ConsumerState<BookAppointmentScreen> {
                 ),
               ),
               Text(
-                '⏱ $_duration minutes',
+                '⏱ $_formattedDuration',
                 style: AppTypography.bodySmall(
                   const Color(0xFF6B4848),
                 ),

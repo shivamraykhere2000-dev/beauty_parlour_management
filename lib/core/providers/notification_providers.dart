@@ -1,4 +1,5 @@
 import 'package:beauty_parlour_management/core/providers/path_provider.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/notifications/notification_sync_service.dart';
@@ -39,6 +40,8 @@ final notificationsPurgeProvider = FutureProvider<void>((ref) async {
 final autoNotificationsSyncProvider = FutureProvider<void>((ref) async {
   final NotificationSyncService service =
       ref.read(notificationSyncServiceProvider);
-
+  debugPrint(
+    ' step 1',
+  );
   await service.sync();
 });
