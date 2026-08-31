@@ -58,8 +58,9 @@ class _RootShellState extends ConsumerState<RootShell>
       case 'Customers':
         setState(() => _tabIndex = 2);
       case 'New Appt':
-      case 'Appointments':
         context.pushNamed(RouteConstants.bookAppointmentName);
+      case 'Appointments':
+        setState(() => _tabIndex = 1);
       case 'Billing':
         context.pushNamed(RouteConstants.billingName);
       case 'Inventory':

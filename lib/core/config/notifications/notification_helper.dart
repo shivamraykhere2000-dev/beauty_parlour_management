@@ -74,3 +74,25 @@ AppNotificationsCompanion followUpNotification({
     expiresAt: DateTime.now().add(const Duration(days: 30)),
   );
 }
+
+AppNotificationsCompanion lowStockNotification({
+  required InventoryItem item,
+  required DateTime today,
+}) {
+  final String dateKey =
+      '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+
+  return buildNotification(
+    type: NotificationType.lowStock,
+    title: item.name,
+    body: '${item.stock} left (min: ${item.minStock})',
+    inventoryItemId: item.id,
+    actionType: NotificationActionType.whatsapp,
+    uniqueKey: 'birthday_${item.id}_$dateKey',
+    expiresAt: DateTime(
+      today.year,
+      today.month,
+      today.day,
+    ).add(const Duration(days: 30)),
+  );
+}

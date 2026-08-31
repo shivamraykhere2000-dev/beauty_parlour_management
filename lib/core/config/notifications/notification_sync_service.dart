@@ -1,7 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../database/app_database.dart';
 import '../../database/daos/appnotifications_dao.dart';
+import '../../database/daos/appointments_dao.dart';
+import '../../database/daos/inventoryitems_dao.dart';
 import '../../providers/notification_providers.dart';
 import '../../providers/path_provider.dart' hide appNotificationsDaoProvider;
 import 'notification_helper.dart';
@@ -17,154 +20,256 @@ class NotificationSyncService {
   final Ref ref;
 
   Future<void> sync() async {
-    final AppNotificationsDao dao = ref.read(appNotificationsDaoProvider);
-    await dao.deleteExpiredNotifications();
-    await _syncBirthdays(dao);
-    await _syncFollowUps(dao);
+    debugPrint('🔔 Notification sync started');
+
+    final AppNotificationsDao notificationDao =
+        ref.read(appNotificationsDaoProvider);
+
+    await notificationDao.deleteExpiredNotifications();
+
+    await _syncBirthdays(notificationDao);
+
+    await _syncFollowUps(notificationDao);
+
+    await _syncLowStock(notificationDao);
+
+    debugPrint('✅ Notification sync completed');
   }
+
+  // =========================================================================
+  // 🎂 BIRTHDAY NOTIFICATIONS
+  // =========================================================================
 
   Future<void> _syncBirthdays(
     AppNotificationsDao dao,
   ) async {
     final List<Customer> customers = await ref.read(customersProvider.future);
+
+    debugPrint(
+      '🎂 Birthday sync: ${customers.length} customers',
+    );
+
+    if (customers.isEmpty) {
+      return;
+    }
+
     final DateTime now = DateTime.now();
+
     final String monthDay = '${now.month.toString().padLeft(2, '0')}-'
         '${now.day.toString().padLeft(2, '0')}';
+
+    debugPrint('🎂 Today month/day: $monthDay');
+
     for (final Customer customer in customers) {
       final String birthday = customer.birthday ?? '';
+
+      debugPrint(
+        '👤 ${customer.name} birthday = $birthday',
+      );
+
       if (birthday.isEmpty) {
         continue;
       }
+
       if (!birthday.endsWith(monthDay)) {
         continue;
       }
+
+      debugPrint(
+        '🎂 Birthday matched: ${customer.name}',
+      );
+
+      /*
+       * The DAO should prevent duplicate notifications.
+       *
+       * If your DAO currently does not have duplicate protection,
+       * we will add it separately.
+       */
       await dao.insertNotification(
         birthdayNotification(
           customer: customer,
           today: now,
         ),
       );
+
+      debugPrint(
+        '✅ Birthday notification created for ${customer.name}',
+      );
     }
   }
+
+  // =========================================================================
+  // 🔄 CUSTOMER FOLLOW-UP NOTIFICATIONS
+  // =========================================================================
 
   Future<void> _syncFollowUps(
     AppNotificationsDao dao,
   ) async {
-    final List<Customer> customers = ref.read(customersProvider).maybeWhen(
-          data: (List<Customer> list) => list,
-          orElse: () => const <Customer>[],
-        );
+    final List<Customer> customers = await ref.read(customersProvider.future);
 
-    /*
-     * This section intentionally uses the appointment data already
-     * exposed by your application.
-     *
-     * If your existing appointmentsProvider has a different name,
-     * replace only that provider below.
-     */
-    final String today = DateTime.now().toIso8601String().substring(0, 10);
-    final appointmentsAsync = ref.watch(appointmentsForDateProvider(today));
-
-    final appointments = appointmentsAsync.maybeWhen(
-      data: (data) => data,
-      orElse: () => <Appointment>[],
-    );
-
-    if (customers.isEmpty || appointments.isEmpty) {
+    if (customers.isEmpty) {
+      debugPrint('🔄 Follow-up sync: no customers');
       return;
     }
-    final DateTime now = DateTime.now();
-    for (final Customer customer in customers) {
-      final List<Appointment> customerAppointments = appointments.where(
-        (Appointment appointment) {
-          return appointment.customerName.trim().toLowerCase() ==
-              customer.name.trim().toLowerCase();
-        },
-      ).where(
-        (Appointment appointment) {
-          return appointment.status == 'completed';
-        },
-      ).toList();
 
-      if (customerAppointments.isEmpty) {
+    final AppointmentsDao appointmentsDao = ref.read(appointmentsDaoProvider);
+
+    final List<Appointment> appointments =
+        await appointmentsDao.watchAllAppointments().first;
+
+    debugPrint(
+      '🔄 Follow-up sync: ${appointments.length} appointments',
+    );
+
+    final DateTime now = DateTime.now();
+
+    for (final Customer customer in customers) {
+      final List<Appointment> completedAppointments =
+          appointments.where((Appointment appointment) {
+        if (appointment.status != 'completed') {
+          return false;
+        }
+
+        return appointment.customerName.trim().toLowerCase() ==
+            customer.name.trim().toLowerCase();
+      }).toList();
+
+      if (completedAppointments.isEmpty) {
         continue;
       }
 
-      final List<DateTime> dates = <DateTime>[];
+      DateTime? lastAppointmentDate;
 
-      for (final Appointment appointment in customerAppointments) {
-        final DateTime? date = _appointmentDate(appointment);
+      for (final Appointment appointment in completedAppointments) {
+        final DateTime? appointmentDate = _appointmentDate(appointment);
 
-        if (date != null) {
-          dates.add(date);
+        if (appointmentDate == null) {
+          continue;
+        }
+
+        if (lastAppointmentDate == null ||
+            appointmentDate.isAfter(lastAppointmentDate)) {
+          lastAppointmentDate = appointmentDate;
         }
       }
 
-      if (dates.isEmpty) {
+      if (lastAppointmentDate == null) {
         continue;
       }
 
-      dates.sort();
-
-      final DateTime lastAppointment = dates.last;
-
       final int daysSinceLastAppointment =
-          now.difference(lastAppointment).inDays;
+          _differenceInDays(now, lastAppointmentDate);
+
+      debugPrint(
+        '🔄 ${customer.name}: '
+        'last appointment = $lastAppointmentDate, '
+        'days = $daysSinceLastAppointment',
+      );
 
       if (daysSinceLastAppointment < 30) {
         continue;
       }
 
+      debugPrint(
+        '🔔 Follow-up required for ${customer.name}',
+      );
+
       await dao.insertNotification(
         followUpNotification(
           customer: customer,
-          lastAppointmentDate: lastAppointment,
+          lastAppointmentDate: lastAppointmentDate,
         ),
       );
     }
   }
 
+  // =========================================================================
+  // ⚠️ LOW STOCK NOTIFICATIONS
+  // =========================================================================
+
+  Future<void> _syncLowStock(
+    AppNotificationsDao dao,
+  ) async {
+    final InventoryitemsDao inventoryDao = ref.read(inventoryitemsDaoProvider);
+
+    final List<InventoryItem> items = await inventoryDao.watchInventory().first;
+
+    debugPrint(
+      '⚠️ Low-stock sync: ${items.length} inventory items',
+    );
+
+    for (final InventoryItem item in items) {
+      if (item.stock > item.minStock) {
+        continue;
+      }
+
+      debugPrint(
+        '⚠️ Low stock: ${item.name} '
+        'stock=${item.stock}, '
+        'minimum=${item.minStock}',
+      );
+      final DateTime now = DateTime.now();
+
+      await dao.insertNotification(
+        lowStockNotification(
+          item: item,
+          today: now,
+        ),
+      );
+
+      debugPrint(
+        '✅ Low-stock notification created for ${item.name}',
+      );
+    }
+  }
+
+  // =========================================================================
+  // 📅 APPOINTMENT DATE
+  // =========================================================================
+
   DateTime? _appointmentDate(
     Appointment appointment,
   ) {
     /*
-     * IMPORTANT:
+     * Your Appointment table currently appears to have a `date`
+     * field based on your existing DAO:
      *
-     * If your Appointment generated Drift model already has a DateTime
-     * field called appointmentDate/date, use it here.
+     *     t.date.equals(date)
      *
-     * Example:
-     *
-     * return appointment.appointmentDate;
-     *
-     * The following implementation tries common formats through
-     * dynamic access so the notification service remains isolated.
+     * Therefore we use appointment.date here.
      */
 
-    try {
-      final dynamic value = (appointment as dynamic).appointmentDate;
+    final String date = appointment.date;
 
-      if (value is DateTime) {
-        return value;
-      }
+    if (date.isEmpty) {
+      return null;
+    }
 
-      if (value is String) {
-        return DateTime.tryParse(value);
-      }
-    } catch (_) {}
+    final DateTime? parsedDate = DateTime.tryParse(date);
 
-    try {
-      final dynamic value = (appointment as dynamic).date;
+    return parsedDate;
+  }
 
-      if (value is DateTime) {
-        return value;
-      }
+  // =========================================================================
+  // 📅 DATE DIFFERENCE
+  // =========================================================================
 
-      if (value is String) {
-        return DateTime.tryParse(value);
-      }
-    } catch (_) {}
+  int _differenceInDays(
+    DateTime current,
+    DateTime previous,
+  ) {
+    final DateTime currentDate = DateTime(
+      current.year,
+      current.month,
+      current.day,
+    );
 
-    return null;
+    final DateTime previousDate = DateTime(
+      previous.year,
+      previous.month,
+      previous.day,
+    );
+
+    return currentDate.difference(previousDate).inDays;
   }
 }
