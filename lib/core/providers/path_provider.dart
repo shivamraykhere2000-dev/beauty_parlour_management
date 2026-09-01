@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/app_constants.dart';
 import '../database/app_database.dart';
+import '../database/daos/appointments_dao.dart';
 import '../di/dependency_injection.dart';
 import '../services/google_drive_backup_service.dart';
 
@@ -65,6 +66,15 @@ final appNotificationsDaoProvider = Provider((ref) {
 
   return db.appNotificationsDao;
 });
+
+final customerAppointmentSummaryProvider =
+    FutureProvider.family<CustomerAppointmentSummary, int>(
+  (ref, customerId) async {
+    final dao = ref.read(appointmentsDaoProvider);
+
+    return dao.getCustomerAppointmentSummary(customerId);
+  },
+);
 
 final Provider<GoogleDriveBackupService> googleDriveBackupServiceProvider =
     Provider<GoogleDriveBackupService>((ref) => GoogleDriveBackupService());

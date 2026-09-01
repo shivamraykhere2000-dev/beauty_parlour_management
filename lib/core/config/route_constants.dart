@@ -6,9 +6,6 @@ abstract class RouteConstants {
   static const String splash = '/splash';
   static const String splashName = 'splash';
 
-  static const String pinLock = '/pin-lock';
-  static const String pinLockName = 'pinLock';
-
   static const String ownerSetup = '/owner-setup';
   static const String ownerSetupName = 'ownerSetup';
 

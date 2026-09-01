@@ -37,10 +37,6 @@ class WhatsAppScreen extends ConsumerWidget {
       appBar: AppTopBar(
         title: 'WhatsApp Templates',
         onBack: onBack,
-        trailing: InkWell(
-          onTap: () => _openAddTemplateDialog(context, ref),
-          child: const Icon(Icons.add, color: Colors.white, size: 22),
-        ),
       ),
       body: templatesAsync.when(
         loading: () => const LoadingWidget(),
@@ -95,14 +91,6 @@ class WhatsAppScreen extends ConsumerWidget {
                               variant: AppButtonVariant.outlined,
                               onPressed: () => _openTemplate(context, ref, t,
                                   startInEditMode: true),
-                            ),
-                          ),
-                          SizedBox(width: AppSpacing.sm),
-                          Expanded(
-                            child: AppButton(
-                              onPressed: () => _confirmDelete(context, ref, t),
-                              label: 'Delete',
-                              icon: Icons.delete,
                             ),
                           ),
                         ],
@@ -200,25 +188,6 @@ class WhatsAppScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _confirmDelete(
-      BuildContext context, WidgetRef ref, WhatsappTemplate template) async {
-    final bool confirmed = await ConfirmationDialog.show(
-      context,
-      title: 'Delete Template?',
-      message: 'Delete "${template.type}"? This cannot be undone.',
-      confirmLabel: 'Delete',
-      isDestructive: true,
-    );
-    if (confirmed) {
-      await ref
-          .read(whatsappTemplatesDaoProvider)
-          .deleteWhatsappTemplate(template.id);
-      if (context.mounted)
-        AppSnackBar.show(context,
-            message: 'Template deleted.', type: AppSnackBarType.success);
-    }
-  }
-
   void _pickCustomerAndSend(
       BuildContext context, WidgetRef ref, WhatsappTemplate template) {
     AppDialog.show(
@@ -274,10 +243,11 @@ class WhatsAppScreen extends ConsumerWidget {
 
 /// The Open/View → Edit → Save/Cancel dialog for a single template.
 class _TemplateDetailDialog extends ConsumerStatefulWidget {
-  const _TemplateDetailDialog(
-      {required this.template,
-      required this.onSend,
-      this.startInEditMode = false});
+  const _TemplateDetailDialog({
+    required this.template,
+    required this.onSend,
+    this.startInEditMode = false,
+  });
 
   final WhatsappTemplate template;
   final bool startInEditMode;
@@ -290,8 +260,11 @@ class _TemplateDetailDialog extends ConsumerStatefulWidget {
 
 class _TemplateDetailDialogState extends ConsumerState<_TemplateDetailDialog> {
   late bool _editing = widget.startInEditMode;
-  late final TextEditingController _controller =
-      TextEditingController(text: widget.template.body);
+
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.template.body,
+  );
+
   bool _saving = false;
 
   @override
@@ -302,33 +275,52 @@ class _TemplateDetailDialogState extends ConsumerState<_TemplateDetailDialog> {
 
   Future<void> _save() async {
     final String newBody = _controller.text.trim();
+
     if (newBody.isEmpty) {
-      AppSnackBar.show(context,
-          message: 'Template cannot be empty.', type: AppSnackBarType.error);
+      AppSnackBar.show(
+        context,
+        message: 'Template cannot be empty.',
+        type: AppSnackBarType.error,
+      );
       return;
     }
+
     setState(() => _saving = true);
+
     try {
-      await ref
-          .read(whatsappTemplatesDaoProvider)
-          .updateWhatsappTemplate(widget.template.copyWith(body: newBody));
+      await ref.read(whatsappTemplatesDaoProvider).updateWhatsappTemplate(
+            widget.template.copyWith(
+              body: newBody,
+            ),
+          );
+
       if (!mounted) return;
+
       Navigator.of(context).pop();
-      AppSnackBar.show(context,
-          message: 'Template updated.', type: AppSnackBarType.success);
+
+      AppSnackBar.show(
+        context,
+        message: 'Template updated.',
+        type: AppSnackBarType.success,
+      );
     } catch (e) {
-      if (mounted)
-        AppSnackBar.show(context,
-            message: 'Could not save template: $e',
-            type: AppSnackBarType.error);
+      if (mounted) {
+        AppSnackBar.show(
+          context,
+          message: 'Could not save template: $e',
+          type: AppSnackBarType.error,
+        );
+      }
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) {
+        setState(() => _saving = false);
+      }
     }
   }
 
   void _cancelEdit() {
     setState(() {
-      _controller.text = widget.template.body; // discard unsaved changes
+      _controller.text = widget.template.body;
       _editing = false;
     });
   }
@@ -338,14 +330,24 @@ class _TemplateDetailDialogState extends ConsumerState<_TemplateDetailDialog> {
     return AlertDialog(
       title: Row(
         children: <Widget>[
-          Text(widget.template.emoji, style: TextStyle(fontSize: 20.sp)),
+          Text(
+            widget.template.emoji,
+            style: TextStyle(fontSize: 20.sp),
+          ),
           SizedBox(width: AppSpacing.xs),
           Expanded(
-              child: Text(widget.template.type,
-                  style: AppTypography.h3(AppColors.foreground)
-                      .copyWith(fontSize: 16.sp))),
+            child: Text(
+              widget.template.type,
+              style: AppTypography.h3(
+                AppColors.foreground,
+              ).copyWith(
+                fontSize: 16.sp,
+              ),
+            ),
+          ),
         ],
       ),
+
       content: SizedBox(
         width: double.maxFinite,
         child: _editing
@@ -353,64 +355,92 @@ class _TemplateDetailDialogState extends ConsumerState<_TemplateDetailDialog> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text("Use {{name}} where the customer's name should go.",
-                      style: AppTypography.caption(AppColors.mutedForeground)),
+                  Text(
+                    "Use {{name}} where the customer's name should go.",
+                    style: AppTypography.caption(
+                      AppColors.mutedForeground,
+                    ),
+                  ),
                   SizedBox(height: AppSpacing.sm),
                   TextField(
                     controller: _controller,
                     maxLines: 6,
                     autofocus: true,
-                    style: AppTypography.bodyMedium(AppColors.foreground),
-                    decoration:
-                        const InputDecoration(hintText: 'Template message...'),
+                    style: AppTypography.bodyMedium(
+                      AppColors.foreground,
+                    ),
+                    decoration: const InputDecoration(
+                      hintText: 'Template message...',
+                    ),
                   ),
                 ],
               )
             : SingleChildScrollView(
-                child: Text(widget.template.body,
-                    style: AppTypography.bodyMedium(AppColors.foreground)),
+                child: Text(
+                  widget.template.body,
+                  style: AppTypography.bodyMedium(
+                    AppColors.foreground,
+                  ),
+                ),
               ),
       ),
-      actionsPadding:
-          EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.md),
-      actions: _editing
-          ? <Widget>[
-              Expanded(
-                child: AppButton(
-                  label: 'Cancel',
-                  variant: AppButtonVariant.outlined,
-                  size: AppButtonSize.medium,
-                  onPressed: _saving ? null : _cancelEdit,
-                ),
-              ),
-              SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: AppButton(
-                  label: 'Save',
-                  size: AppButtonSize.medium,
-                  onPressed: _saving ? null : _save,
-                  isLoading: _saving,
-                ),
-              ),
-            ]
-          : <Widget>[
-              Expanded(
-                child: AppButton(
-                  label: 'Close',
-                  variant: AppButtonVariant.outlined,
-                  size: AppButtonSize.medium,
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-              ),
-              SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: AppButton(
-                  label: 'Edit',
-                  size: AppButtonSize.medium,
-                  onPressed: () => setState(() => _editing = true),
-                ),
-              ),
-            ],
+
+      actionsPadding: EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        0,
+        AppSpacing.lg,
+        AppSpacing.md,
+      ),
+
+// IMPORTANT:
+// AlertDialog.actions uses an OverflowBar internally.
+// Therefore Expanded cannot be used directly inside actions.
+//
+// The Row below creates the required Flex parent for Expanded.
+      actions: <Widget>[
+        Row(
+          children: _editing
+              ? <Widget>[
+                  Expanded(
+                    child: AppButton(
+                      label: 'Cancel',
+                      variant: AppButtonVariant.outlined,
+                      size: AppButtonSize.medium,
+                      onPressed: _saving ? null : _cancelEdit,
+                    ),
+                  ),
+                  SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: AppButton(
+                      label: 'Save',
+                      size: AppButtonSize.medium,
+                      onPressed: _saving ? null : _save,
+                      isLoading: _saving,
+                    ),
+                  ),
+                ]
+              : <Widget>[
+                  Expanded(
+                    child: AppButton(
+                      label: 'Close',
+                      variant: AppButtonVariant.outlined,
+                      size: AppButtonSize.medium,
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ),
+                  SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: AppButton(
+                      label: 'Edit',
+                      size: AppButtonSize.medium,
+                      onPressed: () {
+                        setState(() => _editing = true);
+                      },
+                    ),
+                  ),
+                ],
+        ),
+      ],
     );
   }
 }

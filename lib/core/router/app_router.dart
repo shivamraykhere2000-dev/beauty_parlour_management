@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/appointments/presentation/screens/book_appointment_screen.dart';
 import '../../features/auth/presentation/screens/owner_setup_screen.dart';
-import '../../features/auth/presentation/screens/pin_lock_screen.dart';
 import '../../features/auth/presentation/screens/splash_screen.dart';
 import '../../features/backup/presentation/screens/backup_screen.dart';
 import '../../features/billing/presentation/screens/billing_screen.dart';
@@ -43,12 +42,6 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
         name: RouteConstants.splashName,
         builder: (BuildContext context, GoRouterState state) =>
             const SplashScreen(),
-      ),
-      GoRoute(
-        path: RouteConstants.pinLock,
-        name: RouteConstants.pinLockName,
-        builder: (BuildContext context, GoRouterState state) =>
-            const PinLockScreen(),
       ),
       GoRoute(
         path: RouteConstants.ownerSetup,

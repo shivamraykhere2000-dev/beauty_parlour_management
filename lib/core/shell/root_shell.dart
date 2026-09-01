@@ -132,7 +132,6 @@ class _RootShellState extends ConsumerState<RootShell>
             context.pushNamed(RouteConstants.membershipsName),
         onOpenPackages: () => context.pushNamed(RouteConstants.packagesName),
         onOpenLoyalty: () => context.pushNamed(RouteConstants.loyaltyName),
-        onLockNow: () => context.goNamed(RouteConstants.pinLockName),
       ),
     ];
 
