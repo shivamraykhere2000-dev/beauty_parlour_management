@@ -194,7 +194,11 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
                 customerPhone: customerPhone,
                 dateTimeLabel: '${appt.date} · ${appt.time}',
                 lineItems: lineItems,
-                onCollect: () => _collectForAppointment(appt),
+                onCollect: () => _collectAndSendThankYou(
+                  onCollect: () => _collectForAppointment(appt),
+                  customerName: appt.customerName,
+                  customerPhone: customerPhone,
+                ),
                 onAddMore: () {
                   setState(() {
                     _pickingServices = true;
@@ -1204,6 +1208,12 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
         '',
       );
 
+      final String businessName =
+          await ref.read(settingsDaoProvider).getSetting(
+            'business_name',
+          ) ??
+              'Blossom Beauty Studio';
+
       if (digits.isEmpty) {
         if (mounted) {
           AppSnackBar.show(
@@ -1228,7 +1238,7 @@ We hope you enjoyed your experience.
 We look forward to seeing you again. 😊
 
 Thank you,
-Blossom Beauty Studio
+$businessName
 ''';
 
       final Uri uri = Uri.parse(

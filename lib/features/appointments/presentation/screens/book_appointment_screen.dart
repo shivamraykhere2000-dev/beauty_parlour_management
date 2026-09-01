@@ -136,6 +136,10 @@ class _BookAppointmentScreenState extends ConsumerState<BookAppointmentScreen> {
 
     final String notes = _notesController.text.trim();
 
+    final String businessName = await ref.read(settingsDaoProvider).getSetting(
+              'business_name',
+            ) ??
+        'Blossom Beauty Studio';
     final StringBuffer message = StringBuffer();
 
     message.writeln('Hello $customerName,');
@@ -155,7 +159,7 @@ class _BookAppointmentScreenState extends ConsumerState<BookAppointmentScreen> {
     }
 
     message.writeln();
-    message.writeln('Thank you for choosing our beauty parlour. ❤️');
+    message.writeln('Thank you for choosing $businessName ❤️');
     message.writeln('We look forward to seeing you!');
 
     final Uri whatsappUri = Uri.parse(

@@ -87,8 +87,8 @@ AppNotificationsCompanion lowStockNotification({
     title: item.name,
     body: '${item.stock} left (min: ${item.minStock})',
     inventoryItemId: item.id,
-    actionType: NotificationActionType.whatsapp,
-    uniqueKey: 'birthday_${item.id}_$dateKey',
+    actionType: NotificationActionType.inventory,
+    uniqueKey: 'lowStock_${item.id}_$dateKey',
     expiresAt: DateTime(
       today.year,
       today.month,
