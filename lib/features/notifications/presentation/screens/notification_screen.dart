@@ -427,19 +427,12 @@ class _BirthdayNotificationCard extends ConsumerWidget {
       return;
     }
 
-    final List<WhatsappTemplate> templates =
-        ref.read(whatsappTemplatesProvider).maybeWhen(
-              data: (List<WhatsappTemplate> list) => list,
-              orElse: () => const <WhatsappTemplate>[],
-            );
+    // Get Birthday message directly from database.
+    final String? templateBody = await ref
+        .read(whatsappTemplatesDaoProvider)
+        .getTemplateBody('Birthday Wishes');
 
-    final WhatsappTemplate? template = templates
-        .where(
-          (WhatsappTemplate item) => item.type == 'Birthday Wishes',
-        )
-        .firstOrNull;
-
-    final String message = (template?.body ??
+    final String message = (templateBody ??
             'Happy Birthday {{name}}! 🎉🌸 Enjoy 20% OFF your next visit this week.')
         .replaceAll(
       '{{name}}',
@@ -562,22 +555,22 @@ class _FollowUpNotificationCard extends ConsumerWidget {
     }
 
     if (customer == null) {
+      if (context.mounted) {
+        AppSnackBar.show(
+          context,
+          message: 'Customer "${notification.title}" was not found.',
+          type: AppSnackBarType.error,
+        );
+      }
       return;
     }
 
-    final List<WhatsappTemplate> templates =
-        ref.read(whatsappTemplatesProvider).maybeWhen(
-              data: (List<WhatsappTemplate> list) => list,
-              orElse: () => const <WhatsappTemplate>[],
-            );
+    // Get Follow Up message directly from database.
+    final String? templateBody = await ref
+        .read(whatsappTemplatesDaoProvider)
+        .getTemplateBody('Customer Follow-up');
 
-    final WhatsappTemplate? template = templates
-        .where(
-          (WhatsappTemplate item) => item.type == 'Follow Up',
-        )
-        .firstOrNull;
-
-    final String message = (template?.body ??
+    final String message = (templateBody ??
             'Hi {{name}}! 🌸 We haven\'t seen you for a while. We would love to welcome you back. 😊')
         .replaceAll(
       '{{name}}',

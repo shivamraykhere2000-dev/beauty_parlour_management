@@ -13,6 +13,15 @@ class WhatsappTemplatesDao extends DatabaseAccessor<AppDatabase>
   // =========================================================================
   // WhatsApp Templates
   // =========================================================================
+  Future<String?> getTemplateBody(String type) async {
+    final query = select(whatsappTemplates)
+      ..where((tbl) => tbl.type.equals(type))
+      ..limit(1);
+
+    final template = await query.getSingleOrNull();
+
+    return template?.body;
+  }
 
   Stream<List<WhatsappTemplate>> watchWhatsappTemplates() =>
       select(whatsappTemplates).watch();

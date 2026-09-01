@@ -249,21 +249,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     _SectionLabel('PREFERENCES'),
                     _SettingsGroup(
                       children: <Widget>[
-                        _SwitchTile(
-                          icon: Icons.dark_mode_outlined,
-                          title: 'Dark Mode',
-                          subtitle: 'Switch app appearance',
-                          value: mode == ThemeMode.dark,
-                          onChanged: (bool value) {
-                            ref
-                                .read(
-                                  themeModeProvider.notifier,
-                                )
-                                .setThemeMode(
-                                  value ? ThemeMode.dark : ThemeMode.light,
-                                );
-                          },
-                        ),
+                        // _SwitchTile(
+                        //   icon: Icons.dark_mode_outlined,
+                        //   title: 'Dark Mode',
+                        //   subtitle: 'Switch app appearance',
+                        //   value: mode == ThemeMode.dark,
+                        //   onChanged: (bool value) {
+                        //     ref
+                        //         .read(
+                        //           themeModeProvider.notifier,
+                        //         )
+                        //         .setThemeMode(
+                        //           value ? ThemeMode.dark : ThemeMode.light,
+                        //         );
+                        //   },
+                        // ),
                         _SettingsTile(
                           icon: Icons.notifications_outlined,
                           title: 'Notifications',
