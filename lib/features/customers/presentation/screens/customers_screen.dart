@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../../../../core/database/app_database.dart';
+import '../../../../core/database/daos/appointments_dao.dart';
 import '../../../../core/providers/path_provider.dart';
 import '../../../../core/theme/theme.dart';
 import '../../../../shared/widgets/widgets.dart';
@@ -405,7 +406,7 @@ class _CustomerFilterChip extends StatelessWidget {
 // CUSTOMER ROW
 // =============================================================================
 
-class _CustomerRow extends StatelessWidget {
+class _CustomerRow extends ConsumerWidget {
   const _CustomerRow({
     required this.customer,
     required this.onTap,
@@ -417,39 +418,32 @@ class _CustomerRow extends StatelessWidget {
   final VoidCallback onEdit;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final List<String> tags = customer.tags
         .split(',')
         .map((String tag) => tag.trim())
         .where((String tag) => tag.isNotEmpty)
         .toList();
 
+    final AsyncValue<CustomerAppointmentSummary> summaryAsync = ref.watch(
+      customerAppointmentSummaryProvider(customer.id),
+    );
+
     return AppCard(
       onTap: onTap,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          // -----------------------------------------------------------------
-          // AVATAR
-          // -----------------------------------------------------------------
-
           AppAvatar(
             initials: customer.avatarInitials,
           ),
-
           SizedBox(
             width: AppSpacing.sm,
           ),
-
-          // -----------------------------------------------------------------
-          // CUSTOMER INFORMATION
-          // -----------------------------------------------------------------
-
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                // Name + Membership
                 Wrap(
                   crossAxisAlignment: WrapCrossAlignment.center,
                   spacing: AppSpacing.xxs,
@@ -479,7 +473,6 @@ class _CustomerRow extends StatelessWidget {
 
                 SizedBox(height: 2.h),
 
-                // Phone
                 Text(
                   customer.phone,
                   maxLines: 1,
@@ -491,37 +484,45 @@ class _CustomerRow extends StatelessWidget {
 
                 SizedBox(height: 4.h),
 
-                // Visit information
-                Wrap(
-                  spacing: AppSpacing.xxs,
-                  runSpacing: 2.h,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: <Widget>[
-                    Text(
-                      '${customer.visits} visits',
-                      style: AppTypography.caption(
-                        const Color(0xFF6B4848),
-                      ),
+                // -----------------------------------------------------------
+                // APPOINTMENT SUMMARY
+                // -----------------------------------------------------------
+
+                summaryAsync.when(
+                  loading: () => Text(
+                    'Loading...',
+                    style: AppTypography.caption(
+                      const Color(0xFF6B4848),
                     ),
-                    const _Dot(),
-                    Text(
-                      '${(customer.totalSpent / 1000).toStringAsFixed(1)}K spent',
-                      style: AppTypography.caption(
-                        const Color(0xFF6B4848),
-                      ),
+                  ),
+                  error: (Object error, StackTrace stackTrace) => Text(
+                    '0 visits • ₹0 spent',
+                    style: AppTypography.caption(
+                      const Color(0xFF6B4848),
                     ),
-                    if (customer.lastVisit != null) ...<Widget>[
-                      const _Dot(),
-                      Text(
-                        customer.lastVisit!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTypography.caption(
-                          const Color(0xFF6B4848),
+                  ),
+                  data: (CustomerAppointmentSummary summary) {
+                    return Wrap(
+                      spacing: AppSpacing.xxs,
+                      runSpacing: 2.h,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: <Widget>[
+                        Text(
+                          '${summary.totalAppointments} visits',
+                          style: AppTypography.caption(
+                            const Color(0xFF6B4848),
+                          ),
                         ),
-                      ),
-                    ],
-                  ],
+                        const _Dot(),
+                        Text(
+                          '${(summary.totalAmount / 1000).toStringAsFixed(1)}K spent',
+                          style: AppTypography.caption(
+                            const Color(0xFF6B4848),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
 
                 // Tags
@@ -547,11 +548,6 @@ class _CustomerRow extends StatelessWidget {
           SizedBox(
             width: 4.w,
           ),
-
-          // -----------------------------------------------------------------
-          // EDIT + ARROW
-          // -----------------------------------------------------------------
-
           SizedBox(
             width: 28.w,
             child: Column(

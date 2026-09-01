@@ -19,21 +19,22 @@ class CustomerAppointmentSummary {
 class AppointmentsDao extends DatabaseAccessor<AppDatabase>
     with _$AppointmentsDaoMixin {
   AppointmentsDao(super.db);
-// =========================================================================
+
+  // ===========================================================================
   // Appointments
-  // =========================================================================
+  // ===========================================================================
 
   Stream<List<Appointment>> watchAppointmentsForDate(String date) =>
       (select(appointments)
             ..where((t) => t.date.equals(date))
             ..orderBy(<OrderingTerm Function($AppointmentsTable)>[
-              (t) => OrderingTerm.asc(t.time)
+              (t) => OrderingTerm.asc(t.time),
             ]))
           .watch();
 
   Stream<List<Appointment>> watchAllAppointments() => (select(appointments)
         ..orderBy(<OrderingTerm Function($AppointmentsTable)>[
-          (t) => OrderingTerm.desc(t.id)
+          (t) => OrderingTerm.desc(t.id),
         ]))
       .watch();
 
@@ -46,26 +47,35 @@ class AppointmentsDao extends DatabaseAccessor<AppDatabase>
   Future<void> deleteAppointment(int id) =>
       (delete(appointments)..where((t) => t.id.equals(id))).go();
 
-  Future<CustomerAppointmentSummary> getCustomerAppointmentSummary(
+  // ===========================================================================
+  // Customer Appointment Summary
+  // ===========================================================================
+
+  Stream<CustomerAppointmentSummary> watchCustomerAppointmentSummary(
     int customerId,
-  ) async {
-    final result = await customSelect(
+  ) {
+    final query = customSelect(
       '''
-      SELECT 
+      SELECT
         COUNT(*) AS total_appointments,
         COALESCE(SUM(amount), 0) AS total_amount
       FROM appointments
       WHERE customer_id = ?
+        AND status != 'cancelled'
       ''',
       variables: [
         Variable.withInt(customerId),
       ],
       readsFrom: {appointments},
-    ).getSingle();
+    );
 
-    return CustomerAppointmentSummary(
-      totalAppointments: result.read<int>('total_appointments'),
-      totalAmount: result.read<int>('total_amount'),
+    return query.watchSingle().map(
+      (row) {
+        return CustomerAppointmentSummary(
+          totalAppointments: row.read<int>('total_appointments'),
+          totalAmount: row.read<int>('total_amount'),
+        );
+      },
     );
   }
 }

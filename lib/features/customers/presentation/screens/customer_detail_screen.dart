@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../../../../core/database/app_database.dart';
+import '../../../../core/database/daos/appointments_dao.dart';
 import '../../../../core/providers/path_provider.dart';
 import '../../../../core/theme/theme.dart';
 import '../../../../shared/widgets/widgets.dart';
@@ -103,6 +104,12 @@ class _Body extends ConsumerWidget {
         .where((String t) => t.trim().isNotEmpty)
         .toList();
 
+    final AsyncValue<CustomerAppointmentSummary> summaryAsync = ref.watch(
+      customerAppointmentSummaryProvider(
+        customer.id,
+      ),
+    );
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Column(
@@ -110,82 +117,159 @@ class _Body extends ConsumerWidget {
           Container(
             width: double.infinity,
             padding: EdgeInsets.fromLTRB(
-                AppSpacing.md, AppSpacing.xxl, AppSpacing.md, AppSpacing.lg),
-            decoration:
-                const BoxDecoration(gradient: AppColors.primaryGradient),
+              AppSpacing.md,
+              AppSpacing.xxl,
+              AppSpacing.md,
+              AppSpacing.lg,
+            ),
+            decoration: const BoxDecoration(
+              gradient: AppColors.primaryGradient,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
+                // -------------------------------------------------------------
+                // TOP BAR
+                // -------------------------------------------------------------
+
                 Row(
                   children: <Widget>[
                     InkWell(
                       onTap: onBack,
-                      borderRadius:
-                          BorderRadius.circular(AppDimensions.radiusPill),
+                      borderRadius: BorderRadius.circular(
+                        AppDimensions.radiusPill,
+                      ),
                       child: Container(
                         width: 36.r,
                         height: 36.r,
                         decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.2),
-                            shape: BoxShape.circle),
-                        child: const Icon(Icons.arrow_back,
-                            color: Colors.white, size: 20),
+                          color: Colors.white.withValues(
+                            alpha: 0.2,
+                          ),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.arrow_back,
+                          color: Colors.white,
+                          size: 20,
+                        ),
                       ),
                     ),
-                    SizedBox(width: AppSpacing.sm),
-                    Expanded(
-                        child: Text('Customer Profile',
-                            style: AppTypography.label(Colors.white)
-                                .copyWith(fontWeight: AppTypography.semiBold))),
-                    InkWell(
-                      onTap: () => onEdit?.call(customer),
-                      child: const Icon(Icons.edit_outlined,
-                          color: Colors.white, size: 20),
+
+                    SizedBox(
+                      width: AppSpacing.sm,
                     ),
-                    SizedBox(width: AppSpacing.md),
+
+                    Expanded(
+                      child: Text(
+                        'Customer Profile',
+                        style: AppTypography.label(
+                          Colors.white,
+                        ).copyWith(
+                          fontWeight: AppTypography.semiBold,
+                        ),
+                      ),
+                    ),
+
+                    // Edit
                     InkWell(
-                      onTap: () => _confirmDelete(context, ref),
-                      child: const Icon(Icons.delete_outline,
-                          color: Colors.white, size: 20),
+                      onTap: () {
+                        onEdit?.call(customer);
+                      },
+                      child: const Icon(
+                        Icons.edit_outlined,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ),
+
+                    SizedBox(
+                      width: AppSpacing.md,
+                    ),
+
+                    // Delete
+                    InkWell(
+                      onTap: () {
+                        _confirmDelete(
+                          context,
+                          ref,
+                        );
+                      },
+                      child: const Icon(
+                        Icons.delete_outline,
+                        color: Colors.white,
+                        size: 20,
+                      ),
                     ),
                   ],
                 ),
-                SizedBox(height: AppSpacing.lg),
+
+                SizedBox(
+                  height: AppSpacing.lg,
+                ),
+
+                // -------------------------------------------------------------
+                // CUSTOMER INFO
+                // -------------------------------------------------------------
+
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     AppAvatar(
-                        initials: customer.avatarInitials,
-                        size: AppAvatarSize.xl),
-                    SizedBox(width: AppSpacing.md),
+                      initials: customer.avatarInitials,
+                      size: AppAvatarSize.xl,
+                    ),
+                    SizedBox(
+                      width: AppSpacing.md,
+                    ),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
-                          Text(customer.name,
-                              style: AppTypography.h2(Colors.white)),
-                          Text(customer.phone,
-                              style: AppTypography.bodySmall(
-                                  Colors.white.withValues(alpha: 0.7))),
-                          SizedBox(height: AppSpacing.xxs),
+                          Text(
+                            customer.name,
+                            style: AppTypography.h2(
+                              Colors.white,
+                            ),
+                          ),
+                          Text(
+                            customer.phone,
+                            style: AppTypography.bodySmall(
+                              Colors.white.withValues(
+                                alpha: 0.7,
+                              ),
+                            ),
+                          ),
+                          SizedBox(
+                            height: AppSpacing.xxs,
+                          ),
                           Wrap(
                             spacing: 6,
                             runSpacing: 4,
                             children: <Widget>[
-                              for (final String t in tags.take(2))
+                              for (final String tag in tags.take(2))
                                 Container(
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 2),
+                                    horizontal: 8,
+                                    vertical: 2,
+                                  ),
                                   decoration: BoxDecoration(
-                                      color:
-                                          Colors.white.withValues(alpha: 0.2),
-                                      borderRadius: BorderRadius.circular(
-                                          AppDimensions.radiusPill)),
-                                  child: Text(t,
-                                      style: AppTypography.caption(Colors.white)
-                                          .copyWith(
-                                              fontSize: 10.sp,
-                                              fontWeight: AppTypography.bold)),
+                                    color: Colors.white.withValues(
+                                      alpha: 0.2,
+                                    ),
+                                    borderRadius: BorderRadius.circular(
+                                      AppDimensions.radiusPill,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    tag,
+                                    style: AppTypography.caption(
+                                      Colors.white,
+                                    ).copyWith(
+                                      fontSize: 10.sp,
+                                      fontWeight: AppTypography.bold,
+                                    ),
+                                  ),
                                 ),
                             ],
                           ),
@@ -194,23 +278,17 @@ class _Body extends ConsumerWidget {
                     ),
                   ],
                 ),
-                SizedBox(height: AppSpacing.lg),
-                Row(
-                  children: <Widget>[
-                    Expanded(
-                        child: _HeaderStat(
-                            label: 'Visits', value: '${customer.visits}')),
-                    SizedBox(width: AppSpacing.sm),
-                    Expanded(
-                        child: _HeaderStat(
-                            label: 'Spent',
-                            value:
-                                '₹${(customer.totalSpent / 1000).toStringAsFixed(1)}K')),
-                    SizedBox(width: AppSpacing.sm),
-                    Expanded(
-                        child: _HeaderStat(
-                            label: 'Points', value: '${customer.points}')),
-                  ],
+
+                SizedBox(
+                  height: AppSpacing.lg,
+                ),
+
+                // -------------------------------------------------------------
+                // STATISTICS
+                // -------------------------------------------------------------
+
+                _buildHeaderStats(
+                  summaryAsync,
                 ),
               ],
             ),
@@ -253,6 +331,125 @@ class _Body extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+  // ===========================================================================
+  // HEADER STATS
+  // ===========================================================================
+
+  Widget _buildHeaderStats(
+    AsyncValue<CustomerAppointmentSummary> summaryAsync,
+  ) {
+    return summaryAsync.when(
+      // -----------------------------------------------------------------------
+      // LOADING
+      // -----------------------------------------------------------------------
+
+      loading: () {
+        return Row(
+          children: <Widget>[
+            Expanded(
+              child: _HeaderStat(
+                label: 'Visits',
+                value: '...',
+              ),
+            ),
+            SizedBox(
+              width: AppSpacing.sm,
+            ),
+            Expanded(
+              child: _HeaderStat(
+                label: 'Spent',
+                value: '...',
+              ),
+            ),
+            SizedBox(
+              width: AppSpacing.sm,
+            ),
+            Expanded(
+              child: _HeaderStat(
+                label: 'Points',
+                value: '${customer.points}',
+              ),
+            ),
+          ],
+        );
+      },
+
+      // -----------------------------------------------------------------------
+      // ERROR
+      // -----------------------------------------------------------------------
+
+      error: (
+        Object error,
+        StackTrace stackTrace,
+      ) {
+        return Row(
+          children: <Widget>[
+            Expanded(
+              child: _HeaderStat(
+                label: 'Visits',
+                value: '0',
+              ),
+            ),
+            SizedBox(
+              width: AppSpacing.sm,
+            ),
+            Expanded(
+              child: _HeaderStat(
+                label: 'Spent',
+                value: '₹0',
+              ),
+            ),
+            SizedBox(
+              width: AppSpacing.sm,
+            ),
+            Expanded(
+              child: _HeaderStat(
+                label: 'Points',
+                value: '${customer.points}',
+              ),
+            ),
+          ],
+        );
+      },
+
+      // -----------------------------------------------------------------------
+      // DATA
+      // -----------------------------------------------------------------------
+
+      data: (
+        CustomerAppointmentSummary summary,
+      ) {
+        return Row(
+          children: <Widget>[
+            Expanded(
+              child: _HeaderStat(
+                label: 'Visits',
+                value: '${summary.totalAppointments}',
+              ),
+            ),
+            SizedBox(
+              width: AppSpacing.sm,
+            ),
+            Expanded(
+              child: _HeaderStat(
+                label: 'Spent',
+                value: '₹${(summary.totalAmount / 1000).toStringAsFixed(1)}K',
+              ),
+            ),
+            SizedBox(
+              width: AppSpacing.sm,
+            ),
+            Expanded(
+              child: _HeaderStat(
+                label: 'Points',
+                value: '${customer.points}',
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 

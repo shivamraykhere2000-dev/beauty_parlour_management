@@ -68,11 +68,11 @@ final appNotificationsDaoProvider = Provider((ref) {
 });
 
 final customerAppointmentSummaryProvider =
-    FutureProvider.family<CustomerAppointmentSummary, int>(
-  (ref, customerId) async {
+    StreamProvider.family<CustomerAppointmentSummary, int>(
+  (ref, customerId) {
     final dao = ref.read(appointmentsDaoProvider);
 
-    return dao.getCustomerAppointmentSummary(customerId);
+    return dao.watchCustomerAppointmentSummary(customerId);
   },
 );
 
